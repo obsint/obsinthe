@@ -30,14 +30,14 @@ RETRY_ON_STATUS = [408, 429, 500, 502, 503, 504]
 
 class Client:
     """
-    A Class for collection of metrics from a Prometheus Host.
+    A class for collecting metrics from a Prometheus host.
 
-    :param url: (str) url for the prometheus host
-    :param headers: (dict) A dictionary of http headers to be used to communicate with
-        the host. Example: {"Authorization": "bearer my_oauth_token_to_the_host"}
-    :param disable_ssl: (bool) If set to True, will disable ssl certificate verification
-        for the http requests made to the prometheus host
-    :param retry: (Retry) Retry adapter to retry on HTTP errors
+    Args:
+        url (str): The URL for the Prometheus host.
+        headers (dict): A dictionary of HTTP headers.
+        disable_ssl (bool): Disable SSL verification. DON'T USE IN PRODUCTION,
+            and better DON'T USE AT ALL.
+        retry (Retry): Retry adapter to handle retries on HTTP errors.
     """
 
     def __init__(
@@ -70,7 +70,7 @@ class Client:
         self._session.mount(self.url, HTTPAdapter(max_retries=retry))
 
     def get(self, path, params=None):
-        """Send a GET request to the Prometheus Host."""
+        """Send a generic GET request."""
         return self._session.get(
             f"{self.url}{path}",
             verify=self.ssl_verification,
@@ -82,24 +82,28 @@ class Client:
         """
         Check Promethus connection.
 
-        :param params: (dict) Optional dictionary containing parameters to be
-            sent along with the API request.
-        :returns: (bool) True if the endpoint can be reached, False if cannot be reached.
+        Args:
+            params: (dict) Additional request arguments.
+
+        Returns:
+            bool: True if the endpoint can be reached, False otherwise.
         """
         response = self.get("/", params or {})
         return response.ok
 
     def all_metrics(self, params: Optional[dict] = None):
         """
-        Get the list of all the metrics that the prometheus host scrapes.
+        Get the list of all available metrics.
 
-        :param params: (dict) Optional dictionary containing GET parameters to be
-            sent along with the API request, such as "time"
-        :returns: (list) A list of names of all the metrics available from the
-            specified prometheus host
-        :raises:
-            (RequestException) Raises an exception in case of a connection error
-            (PrometheusApiClientException) Raises in case of non 200 response status code
+        Args:
+            params: (dict) Additional request arguments.
+
+        Returns:
+            list: A list of metrics names.
+
+        Raises:
+            RequestException: If a connection error occurs.
+            PrometheusApiClientException: If a non-200 response is received.
         """
         response = self.get("/api/v1/label/__name__/values", params or {})
 
@@ -117,19 +121,19 @@ class Client:
         self, query: str, time: Optional[datetime] = None, params: Optional[dict] = None
     ):
         """
-        Send a custom query to a Prometheus Host.
+        Send a custom PromQL query.
 
-        This method takes as input a string which will be sent as a query to
-        the specified Prometheus Host. This query is a PromQL query.
+        Args:
+            query (str): The PromQL query string.
+            time (datetime, optional): The time to query.
+            params (dict, optional): Additional request arguments.
 
-        :param query: (str) This is a PromQL query, a few examples can be found
-            at https://prometheus.io/docs/prometheus/latest/querying/examples/
-        :param params: (dict) Optional dictionary containing GET parameters to be
-            sent along with the API request, such as "time"
-        :returns: (list) A list of metric data received in response of the query sent
-        :raises:
-            (RequestException) Raises an exception in case of a connection error
-            (PrometheusApiClientException) Raises in case of non 200 response status code
+        Returns:
+            list: A list of metric data received in response of the query sent.
+
+        Raises:
+            RequestException: If a connection error occurs.
+            PrometheusApiClientException: If a non-200 response is received.
         """
         if params:
             params = params.copy()
@@ -146,9 +150,7 @@ class Client:
             return response.json()["data"]["result"]
         else:
             raise PrometheusApiClientException(
-                "HTTP Status Code {} ({!r})".format(
-                    response.status_code, response.content
-                )
+                "HTTP Status Code {} ({!r})".format(respon)
             )
 
     def query_range(
@@ -156,26 +158,25 @@ class Client:
         query: str,
         start_time: datetime,
         end_time: datetime,
-        step: str,
+        step: int,
         params: dict = None,
     ):
         """
-        Send a query_range to a Prometheus Host.
+        Sends a PromQL range query.
 
-        This method takes as input a string which will be sent as a query to
-        the specified Prometheus Host. This query is a PromQL query.
+        Args:
+            query (str): PromQL query string.
+            start_time (datetime): Range query start time.
+            end_time (datetime): Range query end time.
+            step (int): Number of seconds.
+            params (dict, optional): Additional query params for the request.
 
-        :param query: (str) This is a PromQL query, a few examples can be found
-            at https://prometheus.io/docs/prometheus/latest/querying/examples/
-        :param start_time: (datetime) A datetime object that specifies the query range start time.
-        :param end_time: (datetime) A datetime object that specifies the query range end time.
-        :param step: (str) Query resolution step width in duration format or float number of seconds
-        :param params: (dict) Optional dictionary containing GET parameters to be
-            sent along with the API request, such as "timeout"
-        :returns: (dict) A dict of metric data received in response of the query sent
-        :raises:
-            (RequestException) Raises an exception in case of a connection error
-            (PrometheusApiClientException) Raises in case of non 200 response status code
+        Returns:
+            dict: A dictionary containing metric data received in response.
+
+        Raises:
+            RequestException: If a connection error occurs.
+            PrometheusApiClientException: If a non-200 response status code is received.
         """
         if params:
             params = params.copy()
@@ -185,7 +186,7 @@ class Client:
         params["query"] = query
         params["start"] = round(start_time.timestamp())
         params["end"] = round(end_time.timestamp())
-        params["step"] = step
+        params["step"] = str(step)
 
         response = self.get(
             "/api/v1/query_range",

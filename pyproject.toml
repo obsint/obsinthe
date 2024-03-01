@@ -27,6 +27,7 @@ notebook = "^6.5.4"
 # https://github.com/microsoft/azuredatastudio/issues/24443
 traitlets = "=5.9.0"
 python-dotenv = "*"
+requests_mock = "*"
 
 [tool.isort]
 profile = "black"
