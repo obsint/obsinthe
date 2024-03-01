@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 88
+ignore =
+    # top level import
+    E402,
+    # breaks PEP8, line breaks should go before binary operators
+    W503

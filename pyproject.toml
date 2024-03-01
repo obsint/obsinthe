@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "obsinthe"
+version = "0.1.0"
+description = ""
+authors = []
+packages = [
+  {include = "obsinthe"},
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+requests = "*"
+pandas = "*"
+tqdm = "*"
+pyarrow = "*"
+
+
+[tool.poetry.dev-dependencies]
+pytest = "*"
+pre-commit = "*"
+black = "*"
+isort = "*"
+flake8 = "*"
+jupyter = "*"
+notebook = "^6.5.4"
+# Pinning due to old notebook dependceny, see for example here:
+# https://github.com/microsoft/azuredatastudio/issues/24443
+traitlets = "=5.9.0"
+python-dotenv = "*"
+
+[tool.isort]
+profile = "black"
+force_single_line = true
+atomic = true
+order_by_type = false
+case_sensitive = false
+lines_after_imports = 2
+line_length = 88
+
+[tool.black]
+line-length = 88
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
