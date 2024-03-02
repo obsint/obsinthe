@@ -9,25 +9,25 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.8"
-requests = "*"
 pandas = "*"
-tqdm = "*"
 pyarrow = "*"
+requests = "*"
+tqdm = "*"
 
 
 [tool.poetry.dev-dependencies]
-pytest = "*"
-pre-commit = "*"
 black = "*"
-isort = "*"
 flake8 = "*"
+isort = "*"
 jupyter = "*"
 notebook = "^6.5.4"
+pre-commit = "*"
+pytest = "*"
+python-dotenv = "*"
+responses = "*"
 # Pinning due to old notebook dependceny, see for example here:
 # https://github.com/microsoft/azuredatastudio/issues/24443
 traitlets = "=5.9.0"
-python-dotenv = "*"
-requests_mock = "*"
 
 [tool.isort]
 profile = "black"

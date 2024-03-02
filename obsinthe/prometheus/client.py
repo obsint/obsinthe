@@ -64,6 +64,7 @@ class Client:
                 total=MAX_REQUEST_RETRIES,
                 backoff_factor=RETRY_BACKOFF_FACTOR,
                 status_forcelist=RETRY_ON_STATUS,
+                raise_on_status=False,
             )
 
         self._session = requests.Session()
@@ -78,7 +79,7 @@ class Client:
             params=params,
         )
 
-    def check_prometheus_connection(self, params: Optional[dict] = None) -> bool:
+    def check_connection(self, params: Optional[dict] = None) -> bool:
         """
         Check Promethus connection.
 
@@ -150,7 +151,9 @@ class Client:
             return response.json()["data"]["result"]
         else:
             raise PrometheusApiClientException(
-                "HTTP Status Code {} ({!r})".format(respon)
+                "HTTP Status Code {} ({!r})".format(
+                    response.status_code, response.content
+                )
             )
 
     def query_range(
