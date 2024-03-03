@@ -61,6 +61,18 @@ class Loader:
             self.json_cache = None
             self.parquet_cache = None
 
+    def query(
+        self, query, time, ts_type: Optional[TimeSeriesType] = None, cache_key=None
+    ):
+        if cache_key:
+            if not isinstance(cache_key, list):
+                cache_key = [cache_key, time.isoformat()]
+        return self.with_cache(
+            "parquet",
+            cache_key,
+            lambda: raw_to_df(self.client.query(query, time=time), ts_type=ts_type),
+        )
+
     def interval_query(
         self,
         query: str,
@@ -120,24 +132,6 @@ class Loader:
                 data.append(df)
 
         return data
-
-        # dfs = [raw_data_to_df(day_data) for day_data in data.values()]
-        # dfs = [df for df in dfs if df is not None]
-
-        # df = pd.concat(dfs, ignore_index=True)
-        # return df
-
-    def query(
-        self, query, time, ts_type: Optional[TimeSeriesType] = None, cache_key=None
-    ):
-        if cache_key:
-            if not isinstance(cache_key, list):
-                cache_key = [cache_key, time.isoformat()]
-        return self.with_cache(
-            "parquet",
-            cache_key,
-            lambda: raw_to_df(self.client.query(query, time=time), ts_type=ts_type),
-        )
 
     def with_cache(self, format: str, key: Optional[list], func: Callable):
         if format == "json":
