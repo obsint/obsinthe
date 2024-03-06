@@ -97,6 +97,7 @@ class Loader:
         cache_key: Optional[str] = None,
         batch_size: int = 500,
         ts_type: Optional[TimeSeriesType] = None,
+        post_process: Optional[Callable] = None,
     ):
         def format_query(items):
             if isinstance(query_template, str):
@@ -116,12 +117,18 @@ class Loader:
                 sub_items = items[pos : (pos + batch_size)]  # noqa: E203
                 query = format_query(sub_items)
 
+                cache_keys = [cache_key, interval_end.isoformat(), sub_items]
+
                 d = self.query(
                     query,
                     interval_end,
                     ts_type,
-                    [cache_key, interval_end.isoformat(), sub_items],
+                    cache_keys,
                 )
+                if post_process:
+                    d = self.with_cache(
+                        "parquet", cache_keys + ["post"], lambda: post_process(d)
+                    )
                 if d is not None:
                     day_data.append(d)
 

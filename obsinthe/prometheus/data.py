@@ -34,9 +34,29 @@ class RangeDF(TimeSeriesDF):
     pass
 
 
-def raw_to_instant_df(raw_data):
+def extract_columns_data(raw_data, columns):
+    if columns is None:
+        return raw_data
+
+    ret, extra = {}, {}
+
+    for k, v in raw_data.items():
+        if k in columns:
+            ret[k] = v
+        else:
+            extra[k] = v
+    ret["extra"] = extra
+
+    return ret
+
+
+def raw_to_instant_df(raw_data, columns=None):
     data = [
-        {**d["metric"], "timestamp": d["value"][0], "value": float(d["value"][1])}
+        {
+            **extract_columns_data(d["metric"], columns),
+            "timestamp": d["value"][0],
+            "value": float(d["value"][1]),
+        }
         for d in raw_data
     ]
     df = pd.DataFrame(data)
@@ -46,26 +66,34 @@ def raw_to_instant_df(raw_data):
     return df
 
 
-def raw_to_range_df(raw_data):
+def raw_to_range_df(raw_data, columns=None):
     def typecast_values(values):
         # we use 1-d array by default to avoid issues with parquet conversion
         return np.array([[int(t), float(v)] for (t, v) in values]).flatten()
 
-    data = [{**i["metric"], "values": typecast_values(i["values"])} for i in raw_data]
+    data = [
+        {
+            **extract_columns_data(i["metric"], columns),
+            "values": typecast_values(i["values"]),
+        }
+        for i in raw_data
+    ]
 
     return pd.DataFrame(data=data)
 
 
 def raw_to_df(
-    raw_data, ts_type: Optional[TimeSeriesType] = None
+    raw_data,
+    ts_type: Optional[TimeSeriesType] = None,
+    columns: Optional[list] = None,
 ) -> Optional[pd.DataFrame]:
     if ts_type is None:
         ts_type = TimeSeriesDF.detect_from_raw(raw_data)
 
     if issubclass(ts_type, RangeDF):
-        return raw_to_range_df(raw_data)
+        return raw_to_range_df(raw_data, columns)
     else:
-        return raw_to_instant_df(raw_data)
+        return raw_to_instant_df(raw_data, columns)
 
 
 def np_timestamps_to_intervals(
