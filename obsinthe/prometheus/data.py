@@ -138,8 +138,8 @@ def range_df_to_range_intervals_df(
 
     Args:
         df (pd.DataFrame): A DataFrame containing ranges.
-        threshold (int, optional): The threshold value used to determine the intervals.
-            Defaults to DEFAULT_RESOLUTION.
+        threshold (int, optional): The threshold value used to determine the intervals
+          in seconds. Defaults to DEFAULT_RESOLUTION.
 
     Returns:
         pd.DataFrame: A DataFrame containing intervals.
@@ -147,7 +147,8 @@ def range_df_to_range_intervals_df(
 
     df = df.copy()
 
-    # we use vs[0::2] as we care only about timestamps.
+    # we use vs[0::2] as we care only about timestamps: assuming values being all
+    # ones as in alerts case.
     intervals = df["values"].apply(
         lambda vs: np_timestamps_to_intervals(vs[0::2], threshold)
     )

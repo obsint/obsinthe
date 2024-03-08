@@ -82,6 +82,32 @@ def test_raw_to_df(assert_df):
     assert list(df.columns) == ["foo", "extra", "values"]
 
 
+def test_range_df_to_range_intervals_df(assert_df):
+    range_df = raw_to_range_df(range_query_intervals_data())
+
+    # merge overlaps and intervals within 60 seconds
+    intervals_df = range_df_to_range_intervals_df(range_df, 60)
+    assert_df(
+        intervals_df,
+        """
+   foo                                                     intervals
+0  bar                                [(1704067320.0, 1704067680.0)]
+1  baz  [(1704067260.0, 1704067380.0), (1704067500.0, 1704067680.0)]
+        """,
+    )
+
+    # try increasing the overlaps to 120 seconds
+    intervals_df = range_df_to_range_intervals_df(range_df, 120)
+    assert_df(
+        intervals_df,
+        """
+   foo                       intervals
+0  bar  [(1704067320.0, 1704067680.0)]
+1  baz  [(1704067260.0, 1704067680.0)]
+        """,
+    )
+
+
 def instant_query_data():
     builder = PromInstantDatasetBuilder()
     builder.ts({"foo": "bar"}).value(42)
@@ -102,6 +128,20 @@ def range_query_data():
     builder.ts({"foo": "baz"}).interval(
         timedelta(minutes=3), timedelta(minutes=5), lambda t: t.minute
     )
+    return builder.build_raw()
+
+
+def range_query_intervals_data():
+    builder = PromRangeDatasetBuilder()
+    ts1 = builder.ts({"foo": "bar"})
+    ts1.interval(timedelta(minutes=2), timedelta(minutes=4), 1)
+    ts1.interval(timedelta(minutes=4), timedelta(minutes=6), 1)
+    ts1.interval(timedelta(minutes=7), timedelta(minutes=8), 1)
+
+    ts2 = builder.ts({"foo": "baz"})
+    ts2.interval(timedelta(minutes=1), timedelta(minutes=3), 1)
+    ts2.interval(timedelta(minutes=5), timedelta(minutes=7), 1)
+    ts2.interval(timedelta(minutes=6), timedelta(minutes=8), 1)
     return builder.build_raw()
 
 
