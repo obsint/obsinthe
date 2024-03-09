@@ -8,30 +8,213 @@ from tqdm.auto import tqdm
 from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 # Default resolution for Prometheus queries, in seconds.
-DEFAULT_RESOLUTION = 60 * 5
+DEFAULT_RESOLUTION = timedelta(minutes=5)
 
-TimeSeriesType = Union[Type["InstantDF"], Type["RangeDF"]]
+DataSetType = Union[Type["InstantDS"], Type["RangeDS"]]
 
 
-# Placeholder classes for specifying formats of the dataframes.
-# In the future, objects could actually contain the logic. For now, other
-# functions will be responsible for converting the dataframes to these formats
-# and return plain dataframes.
-class TimeSeriesDF:
+class DataSetBase:
+    def __init__(self, df: pd.DataFrame):
+        self.df = df
+
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__} with columns {list(self.df.columns)} "
+            "and {len(self.df)} rows"
+        )
+
     @staticmethod
-    def detect_from_raw(raw_data) -> TimeSeriesType:
-        if len(raw_data) > 0 and "values" in raw_data[0]:
-            return RangeDF
-        else:
-            return InstantDF
+    def from_raw(raw_data, columns=None) -> Optional["DataSetBase"]:
+        raise NotImplementedError
 
 
-class InstantDF(TimeSeriesDF):
-    pass
+class InstantDS(DataSetBase):
+    @staticmethod
+    def from_raw(raw_data, columns=None) -> Optional["InstantDS"]:
+        if len(raw_data) == 0:
+            return None
+        if "value" not in raw_data[0]:
+            return None
+
+        data = [
+            {
+                **extract_columns_data(d["metric"], columns),
+                "timestamp": d["value"][0],
+                "value": float(d["value"][1]),
+            }
+            for d in raw_data
+        ]
+        df = pd.DataFrame(data)
+        if df.empty:
+            return None
+        df["timestamp"] = pd.to_datetime(df["timestamp"] * 1e9)
+        return InstantDS(df)
 
 
-class RangeDF(TimeSeriesDF):
-    pass
+class RangeDS(DataSetBase):
+    @staticmethod
+    def from_raw(raw_data, columns=None) -> Optional["RangeDS"]:
+        if len(raw_data) == 0:
+            return None
+        if "values" not in raw_data[0]:
+            return None
+
+        def typecast_values(values):
+            # we use 1-d array by default to avoid issues with parquet conversion
+            return np.array([[int(t), float(v)] for (t, v) in values]).flatten()
+
+        data = [
+            {
+                **extract_columns_data(i["metric"], columns),
+                "values": typecast_values(i["values"]),
+            }
+            for i in raw_data
+        ]
+
+        df = pd.DataFrame(data=data)
+        if df.empty:
+            return None
+
+        return RangeDS(df)
+
+    def to_range_intervals_ds(
+        self, threshold: timedelta = DEFAULT_RESOLUTION
+    ) -> "RangeIntervalsDS":
+        """Convert into RangeIntervalsDS.
+
+        It doesn't use the TS values, just determines the intervals for times
+        the values were present.
+
+        It preserves the original rows, just replaces the values column with the
+        intervals.
+
+        Args:
+            threshold (int, optional): The threshold value used to determine the intervals
+            in seconds. Defaults to `DEFAULT_RESOLUTION`.
+
+        Returns:
+            RangeIntervalsDS: A new RangeIntervalsDS instance.
+        """
+
+        df = self.df.copy()
+
+        threshold_s = threshold.total_seconds()
+
+        # we use vs[0::2] as we care only about timestamps: assuming values being all
+        # ones as in alerts case.
+        intervals = df["values"].apply(
+            lambda vs: np_timestamps_to_intervals(vs[0::2], threshold_s)
+        )
+
+        df["intervals"] = intervals
+        df.drop(columns=["values"], inplace=True)
+        return RangeIntervalsDS(df)
+
+    def to_intervals_ds(self, threshold: timedelta) -> "IntervalsDS":
+        """Convert into IntervalsDS.
+
+        It doesn't use the TS values, just determines the intervals for times
+        the values were present.
+
+        It preserves the original rows, just replaces the values column with the
+        intervals.
+
+        Returns:
+            IntervalsDS: A new IntervalsDS instance.
+        """
+        return self.to_range_intervals_ds(threshold).to_intervals_ds()
+
+
+class RangeIntervalsDS(DataSetBase):
+    def to_intervals_ds(self) -> "IntervalsDS":
+        """Expand into a IntervalsDS.
+
+        Each interval is represented as a row in the DataFrame, with the start and end times as columns.
+
+        As a result, the number of rows in the DataFrame will increase.
+
+        Returns:
+            Corresponding IntervalsDS instance.
+        """
+        # explode the intervals into separate rows
+        df = self.df.explode("intervals", ignore_index=True)
+
+        # split the intervals into start and end columns
+        intervals = pd.DataFrame(
+            data={
+                "start": df["intervals"].apply(
+                    lambda v: datetime.utcfromtimestamp(v[0]).replace(
+                        tzinfo=timezone.utc
+                    )
+                ),
+                "end": df["intervals"].apply(
+                    lambda v: datetime.utcfromtimestamp(v[1]).replace(
+                        tzinfo=timezone.utc
+                    )
+                ),
+            }
+        )
+
+        # drop the original values and intervals columns
+        df.drop(columns=["intervals"], inplace=True)
+
+        df = pd.concat([df, intervals], axis=1)
+        return IntervalsDS(df)
+
+
+class IntervalsDS(DataSetBase):
+    def merge_overlaps(self, threshold=timedelta(0), columns=None):
+        """Merge overlapping time intervals.
+
+        Considering a list of time-intervals at the input, merge the rows
+        that have the same columns values + have some time overlaps.
+        """
+        df = self.df
+
+        def _identify_intervals(sub_df):
+            if len(sub_df) == 1:
+                sub_df["interval_label"] = 0
+                return sub_df
+            previous_ends = [None]
+            for i in range(1, len(sub_df)):
+                previous_end = sub_df.iloc[i - 1]["end"]
+                if i > 1:
+                    # handle one interval overlapping multiple others, taking
+                    # always the highest from the previous ends
+                    previous_end = max(previous_end, previous_ends[i - 1])
+                previous_ends.append(previous_end)
+
+            sub_df["previous_end"] = previous_ends
+            period_start = (sub_df["start"] - sub_df["previous_end"]) > threshold
+            sub_df["interval_label"] = period_start.cumsum()
+            return sub_df
+
+        if columns is None:
+            columns = list(df.columns.drop(["start", "end"]))
+        df = df.sort_values("start")
+
+        interval_labels = df.groupby(
+            columns, observed=True, as_index=False, dropna=False, group_keys=False
+        ).apply(_identify_intervals)
+        intervals = interval_labels.groupby(
+            columns + ["interval_label"],
+            observed=True,
+            as_index=True,
+            dropna=False,
+            group_keys=True,
+        ).agg(start=("start", "min"), end=("end", "max"))
+        intervals["sub_intervals"] = interval_labels.groupby(
+            columns + ["interval_label"],
+            observed=True,
+            as_index=True,
+            dropna=False,
+            group_keys=True,
+        ).apply(lambda df: list(zip(df["start"], df["end"])))
+
+        intervals.reset_index(inplace=True)
+        intervals.drop("interval_label", axis=1, inplace=True)
+
+        return IntervalsDS(intervals)
 
 
 def extract_columns_data(raw_data, columns):
@@ -50,50 +233,18 @@ def extract_columns_data(raw_data, columns):
     return ret
 
 
-def raw_to_instant_df(raw_data, columns=None):
-    data = [
-        {
-            **extract_columns_data(d["metric"], columns),
-            "timestamp": d["value"][0],
-            "value": float(d["value"][1]),
-        }
-        for d in raw_data
-    ]
-    df = pd.DataFrame(data)
-    if df.empty:
-        return None
-    df["timestamp"] = pd.to_datetime(df["timestamp"] * 1e9)
-    return df
-
-
-def raw_to_range_df(raw_data, columns=None):
-    def typecast_values(values):
-        # we use 1-d array by default to avoid issues with parquet conversion
-        return np.array([[int(t), float(v)] for (t, v) in values]).flatten()
-
-    data = [
-        {
-            **extract_columns_data(i["metric"], columns),
-            "values": typecast_values(i["values"]),
-        }
-        for i in raw_data
-    ]
-
-    return pd.DataFrame(data=data)
-
-
-def raw_to_df(
+def raw_to_ds(
     raw_data,
-    ts_type: Optional[TimeSeriesType] = None,
+    ds_type: Optional[DataSetBase] = None,
     columns: Optional[list] = None,
-) -> Optional[pd.DataFrame]:
-    if ts_type is None:
-        ts_type = TimeSeriesDF.detect_from_raw(raw_data)
+) -> Optional[DataSetBase]:
+    if ds_type is not None:
+        return ds_type.from_raw(raw_data)
 
-    if issubclass(ts_type, RangeDF):
-        return raw_to_range_df(raw_data, columns)
-    else:
-        return raw_to_instant_df(raw_data, columns)
+    for ts_type in [RangeDS, InstantDS]:
+        ds = ts_type.from_raw(raw_data, columns)
+        if ds is not None:
+            return ds
 
 
 def np_timestamps_to_intervals(
@@ -129,88 +280,6 @@ def np_timestamps_to_intervals(
     return [(g[0], g[-1]) for g in groups]
 
 
-def range_df_to_range_intervals_df(
-    df: pd.DataFrame, threshold: int = DEFAULT_RESOLUTION
-) -> pd.DataFrame:
-    """Convert a DataFrame containing ranges into a DataFrame containing intervals.
-
-    It preserves the original rows, just replaces the values column with the intervals.
-
-    Args:
-        df (pd.DataFrame): A DataFrame containing ranges.
-        threshold (int, optional): The threshold value used to determine the intervals
-          in seconds. Defaults to DEFAULT_RESOLUTION.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing intervals.
-    """
-
-    df = df.copy()
-
-    # we use vs[0::2] as we care only about timestamps: assuming values being all
-    # ones as in alerts case.
-    intervals = df["values"].apply(
-        lambda vs: np_timestamps_to_intervals(vs[0::2], threshold)
-    )
-
-    df["intervals"] = intervals
-    df.drop(columns=["values"], inplace=True)
-    return df
-
-
-def range_intervals_df_to_intervals_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Expand a DataFrame containing compact intervals into a DataFrame containing intervals.
-
-    Each interval is represented as a row in the DataFrame, with the start and end times as columns.
-
-    As a result, the number of rows in the DataFrame will increase.
-
-    Args:
-        df (pd.DataFrame): A DataFrame containing compact intervals.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing intervals.
-    """
-    # explode the intervals into separate rows
-    df = df.explode("intervals", ignore_index=True)
-
-    # split the intervals into start and end columns
-    intervals = pd.DataFrame(
-        data={
-            "start": df["intervals"].apply(
-                lambda v: datetime.utcfromtimestamp(v[0]).replace(tzinfo=timezone.utc)
-            ),
-            "end": df["intervals"].apply(
-                lambda v: datetime.utcfromtimestamp(v[1]).replace(tzinfo=timezone.utc)
-            ),
-        }
-    )
-
-    # drop the original values and intervals columns
-    df.drop(columns=["intervals"], inplace=True)
-
-    return pd.concat([df, intervals], axis=1)
-
-
-def range_df_to_intervals_df(
-    range_df: pd.DataFrame, threshold: int = DEFAULT_RESOLUTION
-) -> pd.DataFrame:
-    """Convert a DataFrame containing ranges into a DataFrame containing intervals.
-
-    Each interval is represented as a row in the DataFrame, with the start and end times as columns.
-
-    Args:
-        df (pd.DataFrame): A DataFrame containing ranges.
-        threshold (int, optional): The threshold value used to determine the intervals.
-            Defaults to DEFAULT_RESOLUTION.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing intervals.
-    """
-    range_intervals_df = range_df_to_range_intervals_df(range_df, threshold)
-    return range_intervals_df_to_intervals_df(range_intervals_df)
-
-
 def identify_intervals(df, resolution, time_column="timestamp"):
     df = df.sort_values(time_column)
     ts = df[time_column]
@@ -221,63 +290,11 @@ def identify_intervals(df, resolution, time_column="timestamp"):
     return df
 
 
-def intervals_merge_overlaps(df, threshold=timedelta(0), columns=None):
-    """Merge overlapping time intervals.
-
-    Considering a list of time-intervals at the input, merge the rows
-    that have the same columns values + have some time overlaps.
-    """
-
-    def _identify_intervals(sub_df):
-        if len(sub_df) == 1:
-            sub_df["interval_label"] = 0
-            return sub_df
-        previous_ends = [None]
-        for i in range(1, len(sub_df)):
-            previous_end = sub_df.iloc[i - 1]["end"]
-            if i > 1:
-                # handle one interval overlapping multiple others, taking
-                # always the highest from the previous ends
-                previous_end = max(previous_end, previous_ends[i - 1])
-            previous_ends.append(previous_end)
-
-        sub_df["previous_end"] = previous_ends
-        period_start = (sub_df["start"] - sub_df["previous_end"]) > threshold
-        sub_df["interval_label"] = period_start.cumsum()
-        return sub_df
-
-    if columns is None:
-        columns = list(df.columns.drop(["start", "end"]))
-    df = df.sort_values("start")
-
-    interval_labels = df.groupby(
-        columns, observed=True, as_index=False, dropna=False, group_keys=False
-    ).apply(_identify_intervals)
-    intervals = interval_labels.groupby(
-        columns + ["interval_label"],
-        observed=True,
-        as_index=True,
-        dropna=False,
-        group_keys=True,
-    ).agg(start=("start", "min"), end=("end", "max"))
-    intervals["sub_intervals"] = interval_labels.groupby(
-        columns + ["interval_label"],
-        observed=True,
-        as_index=True,
-        dropna=False,
-        group_keys=True,
-    ).apply(lambda df: list(zip(df["start"], df["end"])))
-
-    intervals.reset_index(inplace=True)
-    intervals.drop("interval_label", axis=1, inplace=True)
-
-    return intervals
-
-
-def intervals_concat_days(days_df, threshold=timedelta(0)):
+def intervals_concat_days(days_dss, threshold=timedelta(0)):
     ret_dfs = []
     to_merge_left = None
-    for day_df in tqdm(days_df):
+    for day_ds in tqdm(days_dss):
+        day_df = day_ds.df
         # merge the left over from the previous day
 
         if to_merge_left is not None:
@@ -288,9 +305,14 @@ def intervals_concat_days(days_df, threshold=timedelta(0)):
             ]
 
             # merge the intervals
-            merged_df = intervals_merge_overlaps(
-                pd.concat([to_merge_left, to_merge_right], ignore_index=True),
-                threshold=threshold,
+            merged_df = (
+                IntervalsDS(
+                    pd.concat([to_merge_left, to_merge_right], ignore_index=True)
+                )
+                .merge_overlaps(
+                    threshold=threshold,
+                )
+                .df
             )
             merged_df.drop("sub_intervals", axis=1, inplace=True)
 
@@ -316,7 +338,7 @@ def intervals_concat_days(days_df, threshold=timedelta(0)):
     # finalizing the left over from the last day
     ret_dfs.append(to_merge_left)
     df = pd.concat(ret_dfs, ignore_index=True)
-    return df
+    return IntervalsDS(df)
 
 
 def group_by_time(

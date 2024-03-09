@@ -9,8 +9,8 @@ from obsinthe.utils import time as time_utils
 
 from typing import Callable, Dict, Iterable, Optional, Union
 from .client import Client
-from .data import raw_to_df
-from .data import TimeSeriesType
+from .data import InstantDS, RangeDS, raw_to_ds
+from .data import DataSetType
 
 
 def digest(string):
@@ -35,20 +35,48 @@ class JsonFileCache:
 
 
 class ParquetFileCache:
+    DS_TYPES = {"InstantDS": InstantDS, "RangeDS": RangeDS, "DataFrame": pd.DataFrame}
+
     def __init__(self, cache_dir: str):
         self.cache_dir = cache_dir
 
     def with_cache(self, cache_key: list, func: Callable):
-        cache_file = os.path.join(self.cache_dir, *cache_key, "data.parquet")
-        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
-        if os.path.exists(cache_file):
-            return pd.read_parquet(cache_file, engine="pyarrow")
+        pq_cache_file = os.path.join(self.cache_dir, *cache_key, "data.parquet")
+        type_cache_file = os.path.join(self.cache_dir, *cache_key, "data.type")
+        os.makedirs(os.path.dirname(pq_cache_file), exist_ok=True)
+        ret = self.try_read(pq_cache_file, type_cache_file)
+        if ret is not None:
+            return ret
         else:
             data = func()
-            if not isinstance(data, pd.DataFrame):
-                raise ValueError("Data must be a DataFrame")
-            data.to_parquet(cache_file, engine="pyarrow")
+            self.write(pq_cache_file, type_cache_file, data)
             return data
+
+    def try_read(self, pq_cache_file, type_cache_file):
+        if not os.path.exists(pq_cache_file) or not os.path.exists(type_cache_file):
+            return None
+
+        df = pd.read_parquet(pq_cache_file, engine="pyarrow")
+        with open(type_cache_file) as f:
+            ds_type_str = f.read()
+            ds_type = self.DS_TYPES[ds_type_str]
+
+        if ds_type == pd.DataFrame:
+            return df
+        else:
+            return ds_type(df)
+
+    def write(self, pq_cache_file, type_cache_file, data):
+        if data.__class__.__name__ not in self.DS_TYPES:
+            raise ValueError("Invalid data type")
+
+        if not isinstance(data, pd.DataFrame):
+            df = data.df
+        else:
+            df = data
+        df.to_parquet(pq_cache_file, engine="pyarrow")
+        with open(type_cache_file, "w") as f:
+            f.write(data.__class__.__name__)
 
 
 class Loader:
@@ -61,16 +89,14 @@ class Loader:
             self.json_cache = None
             self.parquet_cache = None
 
-    def query(
-        self, query, time, ts_type: Optional[TimeSeriesType] = None, cache_key=None
-    ):
+    def query(self, query, time, ds_type: Optional[DataSetType] = None, cache_key=None):
         if cache_key:
             if not isinstance(cache_key, list):
                 cache_key = [cache_key, time.isoformat()]
         return self.with_cache(
             "parquet",
             cache_key,
-            lambda: raw_to_df(self.client.query(query, time=time), ts_type=ts_type),
+            lambda: raw_to_ds(self.client.query(query, time=time), ds_type=ds_type),
         )
 
     def interval_query(
@@ -79,13 +105,13 @@ class Loader:
         start: str,
         end: str,
         cache_key: Optional[str] = None,
-        ts_type: Optional[TimeSeriesType] = None,
+        ds_type: Optional[DataSetType] = None,
     ) -> list[pd.DataFrame]:
         # load raw data
         data = []
 
         for _, interval_end in tqdm(time_utils.gen_daily_intervals(start, end)):
-            d = self.query(query, interval_end, ts_type, cache_key)
+            d = self.query(query, interval_end, ds_type, cache_key)
             data.append(d)
 
         return data
@@ -96,7 +122,7 @@ class Loader:
         query_template: Union[str, Callable],
         cache_key: Optional[str] = None,
         batch_size: int = 500,
-        ts_type: Optional[TimeSeriesType] = None,
+        ds_type: Optional[DataSetType] = None,
         post_process: Optional[Callable] = None,
     ):
         def format_query(items):
@@ -119,24 +145,29 @@ class Loader:
 
                 cache_keys = [cache_key, interval_end.isoformat(), sub_items]
 
-                d = self.query(
+                ds = self.query(
                     query,
                     interval_end,
-                    ts_type,
+                    ds_type,
                     cache_keys,
                 )
+                if ds is not None:
+                    # make sure the ds_type is determined: will be used later.
+                    ds_type = type(ds)
                 if post_process:
-                    d = self.with_cache(
-                        "parquet", cache_keys + ["post"], lambda: post_process(d)
+                    ds = self.with_cache(
+                        "parquet", cache_keys + ["post"], lambda: post_process(ds)
                     )
-                if d is not None:
-                    day_data.append(d)
+
+                if ds is not None:
+                    day_data.append(ds)
 
             if day_data:
-                df = pd.concat(day_data, ignore_index=True).copy()
+                day_data_dfs = [ds.df for ds in day_data]
+                df = pd.concat(day_data_dfs, ignore_index=True).copy()
                 if "timestamp" not in df.columns:  # in case of range df
                     df["timestamp"] = pd.to_datetime(interval_end)
-                data.append(df)
+                data.append(ds_type(df))
 
         return data
 

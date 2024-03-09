@@ -28,10 +28,10 @@ def loader():
 def test_instant_query(loader, assert_df):
     mock_instant_query()
 
-    df = loader.query("my_metric", TEST_TIME)
+    ds = loader.query("my_metric", TEST_TIME)
 
     assert_df(
-        df,
+        ds.df,
         """
    foo           timestamp  value
 0  bar 2024-01-01 12:00:00   42.0
@@ -44,10 +44,10 @@ def test_instant_query(loader, assert_df):
 def test_range_query(loader, assert_df):
     mock_range_query()
 
-    df = loader.query("my_metric", TEST_TIME)
+    ds = loader.query("my_metric", TEST_TIME)
 
     assert_df(
-        df,
+        ds.df,
         """
    foo                                                        values
 0  bar  [1704106920.0, 42.0, 1704106980.0, 42.0, 1704107040.0, 42.0]
@@ -81,7 +81,7 @@ def test_batch_query(loader, assert_df):
     ]
 
     assert_df(
-        res[0],
+        res[0].df,
         """
    foo                                                        values  \\
 0  bar  [1704106920.0, 42.0, 1704106980.0, 42.0, 1704107040.0, 42.0]
@@ -98,7 +98,7 @@ def test_batch_query(loader, assert_df):
     )
 
     assert_df(
-        res[1],
+        res[1].df,
         """
    foo                                                        values  \\
 0  bar  [1704106920.0, 42.0, 1704106980.0, 42.0, 1704107040.0, 42.0]
@@ -134,7 +134,7 @@ def test_interval_query(loader, assert_df):
     ]
 
     assert_df(
-        res[0],
+        res[0].df,
         """
    foo                                                        values
 0  bar  [1704106920.0, 42.0, 1704106980.0, 42.0, 1704107040.0, 42.0]
@@ -163,7 +163,7 @@ def test_cache(assert_df):
 
     assert len(responses.calls) == 4
     assert_df(
-        res[0],
+        res[0].df,
         """
    foo                                                        values  \\
 0  bar  [1704106920.0, 42.0, 1704106980.0, 42.0, 1704107040.0, 42.0]
@@ -194,7 +194,7 @@ def test_cache(assert_df):
     # Same key => no new queries
     assert len(responses.calls) == 0
     assert_df(
-        res[0],
+        res[0].df,
         """
    foo                                                        values  \\
 0  bar  [1704106920.0, 42.0, 1704106980.0, 42.0, 1704107040.0, 42.0]
