@@ -112,7 +112,6 @@ class TimeSeriesBuilder:
         ret = []
         for interval in self.intervals:
             int_start, int_end = interval.normalize_start_end(start, end)
-            print(f"int_start: {int_start}, int_end: {int_end}")
 
             current = next_sample(start, step, int_start)
 

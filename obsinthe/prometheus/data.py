@@ -20,8 +20,14 @@ class DataSetBase:
     def __repr__(self):
         return (
             f"{self.__class__.__name__} with columns {list(self.df.columns)} "
-            "and {len(self.df)} rows"
+            f"and {len(self.df)} rows"
         )
+
+    def fmap(self, fn):
+        return type(self)(fn(self.df))
+
+    def query(self, *args, **kwargs):
+        return self.fmap(lambda df: df.query(*args, **kwargs))
 
     @staticmethod
     def from_raw(raw_data, columns=None) -> Optional["DataSetBase"]:
