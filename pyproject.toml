@@ -14,6 +14,12 @@ pyarrow = "*"
 requests = "*"
 tqdm = "*"
 
+plotly = { version = "*", optional = true }
+cufflinks = { version = "*", optional = true }
+
+[tool.poetry.extras]
+vis = ["plotly", "cufflinks"]
+
 
 [tool.poetry.dev-dependencies]
 black = "*"
