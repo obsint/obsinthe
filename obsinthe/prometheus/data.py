@@ -1,11 +1,17 @@
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple, Type, Union
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Type
+from typing import Union
+
 import numpy as np
 import pandas as pd
-
+from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from tqdm.auto import tqdm
 
-from pandas.api.types import is_datetime64_any_dtype as is_datetime
 
 # Default resolution for Prometheus queries, in seconds.
 DEFAULT_RESOLUTION = timedelta(minutes=5)
@@ -95,8 +101,8 @@ class RangeDS(DataSetBase):
         intervals.
 
         Args:
-            threshold (int, optional): The threshold value used to determine the intervals
-            in seconds. Defaults to `DEFAULT_RESOLUTION`.
+            threshold (int, optional): The threshold value used to determine the
+            intervals in seconds. Defaults to `DEFAULT_RESOLUTION`.
 
         Returns:
             RangeIntervalsDS: A new RangeIntervalsDS instance.
@@ -135,7 +141,8 @@ class RangeIntervalsDS(DataSetBase):
     def to_intervals_ds(self) -> "IntervalsDS":
         """Expand into a IntervalsDS.
 
-        Each interval is represented as a row in the DataFrame, with the start and end times as columns.
+        Each interval is represented as a row in the DataFrame, with the start
+        and end times as columns.
 
         As a result, the number of rows in the DataFrame will increase.
 
@@ -263,7 +270,8 @@ def np_timestamps_to_intervals(
         threshold (float): The threshold value used to determine the intervals.
 
     Returns:
-        List[Tuple[int, int]]: A set of intervals represented as tuples of (start_time, end_time).
+        List[Tuple[int, int]]: A set of intervals represented as tuples of
+        (start_time, end_time).
 
     Example:
         >>> timestamps = np.array([0, 1, 2, 5, 10, 12, 15, 20])
@@ -272,11 +280,13 @@ def np_timestamps_to_intervals(
         [(0, 2), (5, 5), (10, 12), (15, 15), (20, 20)]
 
     Notes:
-        - Timestamps should be sorted in ascending order before passing to this function.
+        - Timestamps should be sorted in ascending order before passing to this
+          function.
         - Intervals are inclusive of the start time and exclusive of the end time.
-        - Consecutive timestamps with a difference less than or equal to the threshold
-          will be grouped into the same interval.
-        - If the difference between two consecutive timestamps is greater than the threshold,
+        - Consecutive timestamps with a difference less than or equal to the
+          threshold will be grouped into the same interval.
+        - If the difference between two consecutive timestamps is greater than
+          the threshold,
           a new interval will be created.
         - The intervals use utc datetime.
     """

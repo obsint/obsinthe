@@ -1,10 +1,16 @@
 import abc
+import json
 import math
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
-from typing import Callable, List, Optional, SupportsFloat, Tuple, Union
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from typing import Callable
+from typing import List
+from typing import SupportsFloat
+from typing import Tuple
+from typing import Union
 
-import json
 
 DEFAULT_START_TIME = datetime(2024, 1, 1, tzinfo=timezone.utc)
 DEFAULT_END_TIME = datetime(2024, 1, 3, tzinfo=timezone.utc)

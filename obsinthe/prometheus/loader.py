@@ -1,16 +1,22 @@
 import json
 import os
 from hashlib import sha256
+from typing import Callable
+from typing import Dict
+from typing import Iterable
+from typing import Optional
+from typing import Union
 
 import pandas as pd
 from tqdm.auto import tqdm
 
 from obsinthe.utils import time as time_utils
 
-from typing import Callable, Dict, Iterable, Optional, Union
 from .client import Client
-from .data import InstantDS, RangeDS, raw_to_ds
 from .data import DataSetType
+from .data import InstantDS
+from .data import RangeDS
+from .data import raw_to_ds
 
 
 def digest(string):

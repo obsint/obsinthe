@@ -1,0 +1,41 @@
+repos:
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (python)
+      - id: isort
+        name: isort (cython)
+        types: [cython]
+      - id: isort
+        name: isort (pyi)
+        types: [pyi]
+  - repo: https://github.com/psf/black
+    rev: 24.2.0
+    hooks:
+      - id: black
+        args: [--safe, --quiet]
+        language_version: python3
+        require_serial: true
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        language_version: python3
+        exclude: health_console/dash/assets/patternfly
+      - id: end-of-file-fixer
+        language_version: python3
+        exclude: health_console/dash/assets/patternfly
+      - id: debug-statements
+        language_version: python3
+        exclude: health_console/dash/assets/patternfly
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        language_version: python3
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.15.1
+    hooks:
+      - id: pyupgrade
+        language_version: python3

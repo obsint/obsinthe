@@ -1,5 +1,5 @@
-from IPython.display import display
 import pandas as pd
+from IPython.display import display
 
 
 def display_full(df, hide_index=False):

@@ -1,8 +1,8 @@
-from datetime import timedelta, datetime
-from obsinthe.testing.prometheus import (
-    PromInstantDatasetBuilder,
-    PromRangeDatasetBuilder,
-)
+from datetime import datetime
+from datetime import timedelta
+
+from obsinthe.testing.prometheus import PromInstantDatasetBuilder
+from obsinthe.testing.prometheus import PromRangeDatasetBuilder
 from obsinthe.testing.prometheus import TimeSeriesBuilder
 
 

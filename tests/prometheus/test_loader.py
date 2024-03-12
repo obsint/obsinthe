@@ -1,16 +1,17 @@
 import tempfile
-from datetime import datetime, timedelta, timezone
-from urllib.parse import urlparse, parse_qs
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
 
 import pytest
 import responses
 
 from obsinthe.prometheus.client import Client
 from obsinthe.prometheus.loader import Loader
-from obsinthe.testing.prometheus import (
-    PromInstantDatasetBuilder,
-    PromRangeDatasetBuilder,
-)
+from obsinthe.testing.prometheus import PromInstantDatasetBuilder
+from obsinthe.testing.prometheus import PromRangeDatasetBuilder
 
 
 EXAMPLE_URL = "http://prometheus.example.com"

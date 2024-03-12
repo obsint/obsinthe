@@ -1,10 +1,12 @@
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
 
 import pytest
 import responses
 
-from obsinthe.prometheus.client import Client, PrometheusApiClientException
+from obsinthe.prometheus.client import Client
+from obsinthe.prometheus.client import PrometheusApiClientException
 
 
 EXAMPLE_URL = "http://prometheus.example.com"
@@ -79,7 +81,7 @@ def test_check_connection():
 
     client = Client(f"{EXAMPLE_URL}", "token")
 
-    assert client.check_connection() == True
+    assert client.check_connection()
 
     responses.get(
         f"{EXAMPLE_URL}/",
@@ -87,7 +89,7 @@ def test_check_connection():
         status=403,
     )
 
-    assert client.check_connection() == False
+    assert not client.check_connection()
 
 
 @responses.activate()

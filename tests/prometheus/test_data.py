@@ -1,20 +1,15 @@
 from datetime import timedelta
 
-from obsinthe.prometheus.data import (
-    InstantDS,
-    IntervalsDS,
-    RangeDS,
-    raw_to_ds,
-    intervals_concat_days,
-    group_by_time,
-    one_hot_encode,
-)
-
-from obsinthe.testing.prometheus import (
-    PromInstantDatasetBuilder,
-    PromRangeDatasetBuilder,
-    DEFAULT_START_TIME,
-)
+from obsinthe.prometheus.data import group_by_time
+from obsinthe.prometheus.data import InstantDS
+from obsinthe.prometheus.data import intervals_concat_days
+from obsinthe.prometheus.data import IntervalsDS
+from obsinthe.prometheus.data import one_hot_encode
+from obsinthe.prometheus.data import RangeDS
+from obsinthe.prometheus.data import raw_to_ds
+from obsinthe.testing.prometheus import DEFAULT_START_TIME
+from obsinthe.testing.prometheus import PromInstantDatasetBuilder
+from obsinthe.testing.prometheus import PromRangeDatasetBuilder
 
 
 def test_instant_ds_from_raw(assert_df):

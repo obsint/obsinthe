@@ -101,7 +101,6 @@ def merge_daily_split_intervals(day_dfs):
         ret = df.apply(merge_row_intervals, axis=1)
         return ret
 
-    # base = pd.concat([df.drop(columns=["intervals"]) for df in day_dfs]).drop_duplicates()
     base = reduce(
         lambda a, b: a.combine_first(b),
         [df.drop(columns=["intervals"]) for df in day_dfs],
@@ -109,6 +108,5 @@ def merge_daily_split_intervals(day_dfs):
 
     intervals = reduce(merge_adjacent_days, [d["intervals"] for d in day_dfs])
     intervals.name = "intervals"
-    # return base, intervals
 
     return base.join(intervals)
