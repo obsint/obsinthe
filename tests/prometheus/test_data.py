@@ -7,9 +7,9 @@ from obsinthe.prometheus.data import IntervalsDS
 from obsinthe.prometheus.data import one_hot_encode
 from obsinthe.prometheus.data import RangeDS
 from obsinthe.prometheus.data import raw_to_ds
-from obsinthe.testing.prometheus import DEFAULT_START_TIME
-from obsinthe.testing.prometheus import PromInstantDatasetBuilder
-from obsinthe.testing.prometheus import PromRangeDatasetBuilder
+from obsinthe.testing.prometheus.builder import DEFAULT_START_TIME
+from obsinthe.testing.prometheus.builder import PromInstantDatasetBuilder
+from obsinthe.testing.prometheus.builder import PromRangeDatasetBuilder
 
 
 def test_instant_ds_from_raw(assert_df):
@@ -358,7 +358,7 @@ def range_query_intervals_data(extra_labels=False):
 
 def multi_day_intervals_ds():
     builder = PromRangeDatasetBuilder(
-        start_time=DEFAULT_START_TIME, end_time=DEFAULT_START_TIME + timedelta(days=4)
+        start=DEFAULT_START_TIME, end=DEFAULT_START_TIME + timedelta(days=4)
     )
     ts_a_1 = builder.ts({"foo": "a", "day": "1"})
     ts_a_1.interval(timedelta(minutes=0), timedelta(hours=24), 1)

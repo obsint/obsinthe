@@ -12,6 +12,13 @@ from dateutil.rrule import DAILY
 from dateutil.rrule import rrule
 
 
+def normalize_tz(time: datetime):
+    """Ensure time is normalized to UTC"""
+    if time.tzinfo is None:
+        return time.replace(tzinfo=timezone.utc)
+    return time.astimezone(timezone.utc)
+
+
 def datetime_start_of_day(dt: datetime) -> datetime:
     return datetime.combine(dt.date(), datetime.min.time(), tzinfo=timezone.utc)
 
@@ -29,6 +36,7 @@ def add_row_digest(df: pd.DataFrame, exclude) -> pd.DataFrame:
 
 
 def gen_daily_intervals(start, end):
+    start, end = normalize_tz(start), normalize_tz(end)
     ticks = [
         d.replace(tzinfo=timezone.utc)
         for d in rrule(DAILY, dtstart=start.date(), until=end.date())

@@ -7,9 +7,12 @@ from datetime import timedelta
 from datetime import timezone
 from typing import Callable
 from typing import List
+from typing import Optional
 from typing import SupportsFloat
 from typing import Tuple
 from typing import Union
+
+from obsinthe.utils.time import normalize_tz
 
 
 DEFAULT_START_TIME = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -36,34 +39,36 @@ class Interval:
     value: ValueSpec
 
     def normalize_start_end(
-        self, dataset_start: datetime, dataset_end: datetime
+        self, start: datetime, end: datetime, time_origin: Optional[datetime] = None
     ) -> Tuple[datetime, datetime]:
         """
         Normalize the start and end times of the interval.
 
         Turns the TimeSpec for `start` and `end` into a datetime object.
         """
-        if isinstance(self.start, timedelta):
-            start = dataset_start + self.start
-        elif self.start is None:
-            start = dataset_start
-        else:
-            start = self.start
+        time_origin = time_origin or start
 
-        start = max(start, dataset_start)
-        start = normalize_tz(start)
+        if isinstance(self.start, timedelta):
+            ret_start = time_origin + self.start
+        elif self.start is None:
+            ret_start = start
+        else:
+            ret_start = self.start
+
+        ret_start = max(ret_start, start)
+        ret_start = normalize_tz(ret_start)
 
         if isinstance(self.end, timedelta):
-            end = dataset_start + self.end
+            ret_end = time_origin + self.end
         elif self.end is None:
-            end = dataset_end
+            ret_end = end
         else:
-            end = self.end
+            ret_end = self.end
 
-        end = min(end, dataset_end)
-        end = normalize_tz(end)
+        ret_end = min(ret_end, end)
+        ret_end = normalize_tz(ret_end)
 
-        return start, end
+        return ret_start, ret_end
 
     def eval(self, timestamp: datetime) -> float:
         """
@@ -111,13 +116,19 @@ class TimeSeriesBuilder:
         return self
 
     def build(
-        self, start: datetime, end: datetime, step: timedelta
+        self,
+        start: datetime,
+        end: datetime,
+        step: timedelta,
+        time_origin: Optional[datetime] = None,
     ) -> List[Tuple[int, float]]:
-        start, end = normalize_tz(start), normalize_tz(end)
+        start = normalize_tz(start)
+        end = normalize_tz(end)
+        time_origin = normalize_tz(time_origin or start)
 
         ret = []
         for interval in self.intervals:
-            int_start, int_end = interval.normalize_start_end(start, end)
+            int_start, int_end = interval.normalize_start_end(start, end, time_origin)
 
             current = next_sample(start, step, int_start)
 
@@ -195,22 +206,30 @@ class PromRangeDatasetBuilder(PromDatasetBuilderBase):
 
     def __init__(
         self,
-        start_time=DEFAULT_START_TIME,
-        end_time=DEFAULT_END_TIME,
+        start=DEFAULT_START_TIME,
+        end=DEFAULT_END_TIME,
         resolution=DEFAULT_RESOLUTION,
     ):
         super().__init__()
-        self.start_time = normalize_tz(start_time)
-        self.end_time = normalize_tz(end_time)
+        self.start = start
+        self.end = end
         self.resolution = resolution
 
-    def build_raw(self) -> List[dict]:
+    def build_raw(
+        self,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> List[dict]:
         ret = []
 
+        start = normalize_tz(start or self.start)
+        end = normalize_tz(end or self.end)
+
         for ts in self.time_series:
-            values = ts.build(self.start_time, self.end_time, self.resolution)
-            values = [[t, str(v)] for t, v in values]
-            ret.append({"metric": ts.labels, "values": values})
+            values = ts.build(start, end, self.resolution, time_origin=self.start)
+            if values:
+                values = [[t, str(v)] for t, v in values]
+                ret.append({"metric": ts.labels, "values": values})
 
         return ret
 
@@ -221,10 +240,3 @@ def next_sample(start: datetime, resolution: timedelta, current: datetime):
     """
     steps = math.ceil((current - start) / resolution)
     return start + steps * resolution
-
-
-def normalize_tz(time: datetime):
-    """Ensure time is normalized to UTC"""
-    if time.tzinfo is None:
-        return time.replace(tzinfo=timezone.utc)
-    return time.astimezone(timezone.utc)

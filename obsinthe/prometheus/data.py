@@ -311,12 +311,12 @@ def intervals_concat_days(days_dss, threshold=timedelta(0)):
     to_merge_left = None
     for day_ds in tqdm(days_dss):
         day_df = day_ds.df
-        # merge the left over from the previous day
+        # Merge the left over from the previous day.
 
         if to_merge_left is not None:
-            # we consider only beginning of the day
+            # We consider only beginning of the day.
             to_merge_right = day_df.loc[
-                # in daily, we consider only beginning of the day
+                # In daily, we consider only beginning of the day.
                 ((day_df["start"] - day_df["start"].dt.normalize()) <= threshold)
             ]
 
@@ -332,26 +332,26 @@ def intervals_concat_days(days_dss, threshold=timedelta(0)):
             )
             merged_df.drop("sub_intervals", axis=1, inplace=True)
 
-            # replace the intervals in to_merge_right with the merged ones
+            # Replace the intervals in to_merge_right with the merged ones.
             day_df = day_df.loc[day_df.index.difference(to_merge_right.index)]
             day_df = pd.concat([day_df, merged_df], ignore_index=True)
 
-        # prepare the left over for the next day
+        # Prepare the left over for the next day.
         to_merge_left = day_df.loc[
-            # end of day
+            # End of day.
             (
                 (day_df["end"] - day_df["end"].dt.normalize())
                 >= (timedelta(days=1) - threshold)
             )
-            # with special case of end right at the midnight
+            # Special case of end right at the midnight.
             | ((day_df["end"] - day_df["end"].dt.normalize()) == timedelta(0))
         ]
 
-        # add the rest of the day_df to the ret_dfs: no need to merge with anything
+        # Add the rest of the day_df to the ret_dfs: no need to merge with anything.
         day_df = day_df.loc[day_df.index.difference(to_merge_left.index)]
         ret_dfs.append(day_df)
 
-    # finalizing the left over from the last day
+    # Finalizing the left over from the last day.
     ret_dfs.append(to_merge_left)
     df = pd.concat(ret_dfs, ignore_index=True)
     return IntervalsDS(df)
