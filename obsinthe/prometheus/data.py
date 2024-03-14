@@ -182,6 +182,9 @@ class IntervalsDS(DataSetBase):
         Considering a list of time-intervals at the input, merge the rows
         that have the same columns values + have some time overlaps.
         """
+        if self.df.empty:
+            return self
+
         df = self.df
 
         def _identify_intervals(sub_df):
@@ -209,6 +212,7 @@ class IntervalsDS(DataSetBase):
         interval_labels = df.groupby(
             columns, observed=True, as_index=False, dropna=False, group_keys=False
         ).apply(_identify_intervals)
+
         intervals = interval_labels.groupby(
             columns + ["interval_label"],
             observed=True,
@@ -330,7 +334,8 @@ def intervals_concat_days(days_dss, threshold=timedelta(0)):
                 )
                 .df
             )
-            merged_df.drop("sub_intervals", axis=1, inplace=True)
+            if "sub_intervals" in merged_df.columns:
+                merged_df.drop("sub_intervals", axis=1, inplace=True)
 
             # Replace the intervals in to_merge_right with the merged ones.
             day_df = day_df.loc[day_df.index.difference(to_merge_right.index)]

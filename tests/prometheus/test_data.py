@@ -186,6 +186,9 @@ def test_intervals_merge_overlaps(assert_df):
 """.strip()
     )
 
+    empty_ds = intervals_ds.fmap(lambda df: df.iloc[0:0])
+    assert empty_ds.merge_overlaps(timedelta(minutes=2)).df.empty
+
 
 def test_intervals_concat_days(assert_df):
     intervals_ds = multi_day_intervals_ds()
