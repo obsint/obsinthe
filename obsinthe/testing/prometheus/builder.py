@@ -211,8 +211,8 @@ class PromRangeDatasetBuilder(PromDatasetBuilderBase):
         resolution=DEFAULT_RESOLUTION,
     ):
         super().__init__()
-        self.start = start
-        self.end = end
+        self.start = normalize_tz(start)
+        self.end = normalize_tz(end)
         self.resolution = resolution
 
     def build_raw(

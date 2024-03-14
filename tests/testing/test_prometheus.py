@@ -1,9 +1,11 @@
 from datetime import datetime
 from datetime import timedelta
 
+from obsinthe.prometheus.data import RangeDS
 from obsinthe.testing.prometheus import PromInstantDatasetBuilder
 from obsinthe.testing.prometheus import PromRangeDatasetBuilder
 from obsinthe.testing.prometheus import TimeSeriesBuilder
+from obsinthe.testing.prometheus.alerts import AlertsDataSetBuilder
 
 
 def test_time_series_builder():
@@ -71,3 +73,16 @@ def test_prom_instant_dataset_builder():
         {"metric": {"foo": "bar"}, "value": [1704119400, "42.0"]},
         {"metric": {"foo": "baz"}, "value": [1704119400, "30.0"]},
     ]
+
+
+def test_alerts_dataset_builder():
+    builder = AlertsDataSetBuilder(
+        datetime(2024, 1, 1, 14, 30), datetime(2024, 1, 1, 15, 30)
+    )
+
+    data = builder.build_raw()
+    range_ds = RangeDS.from_raw(data)
+
+    # Just a simple check that the data was generated without errors.
+    assert "TargetDown" in set(range_ds.df["alertname"])
+    assert range_ds.df["alertname"].nunique() == 28
