@@ -16,10 +16,10 @@ from tqdm.auto import tqdm
 # Default resolution for Prometheus queries, in seconds.
 DEFAULT_RESOLUTION = timedelta(minutes=5)
 
-DataSetType = Union[Type["InstantDS"], Type["RangeDS"]]
+DatasetType = Union[Type["InstantDataset"], Type["RangeDataset"]]
 
 
-class DataSetBase:
+class DatasetBase:
     def __init__(self, df: pd.DataFrame):
         self.df = df
 
@@ -36,13 +36,13 @@ class DataSetBase:
         return self.fmap(lambda df: df.query(*args, **kwargs))
 
     @staticmethod
-    def from_raw(raw_data, columns=None) -> Optional["DataSetBase"]:
+    def from_raw(raw_data, columns=None) -> Optional["DatasetBase"]:
         raise NotImplementedError
 
 
-class InstantDS(DataSetBase):
+class InstantDataset(DatasetBase):
     @staticmethod
-    def from_raw(raw_data, columns=None) -> Optional["InstantDS"]:
+    def from_raw(raw_data, columns=None) -> Optional["InstantDataset"]:
         if len(raw_data) == 0:
             return None
         if "value" not in raw_data[0]:
@@ -60,12 +60,12 @@ class InstantDS(DataSetBase):
         if df.empty:
             return None
         df["timestamp"] = pd.to_datetime(df["timestamp"] * 1e9)
-        return InstantDS(df)
+        return InstantDataset(df)
 
 
-class RangeDS(DataSetBase):
+class RangeDataset(DatasetBase):
     @staticmethod
-    def from_raw(raw_data, columns=None) -> Optional["RangeDS"]:
+    def from_raw(raw_data, columns=None) -> Optional["RangeDataset"]:
         if len(raw_data) == 0:
             return None
         if "values" not in raw_data[0]:
@@ -87,12 +87,12 @@ class RangeDS(DataSetBase):
         if df.empty:
             return None
 
-        return RangeDS(df)
+        return RangeDataset(df)
 
     def to_range_intervals_ds(
         self, threshold: timedelta = DEFAULT_RESOLUTION
-    ) -> "RangeIntervalsDS":
-        """Convert into RangeIntervalsDS.
+    ) -> "RangeIntervalsDataset":
+        """Convert into RangeIntervalsDataset.
 
         It doesn't use the TS values, just determines the intervals for times
         the values were present.
@@ -105,7 +105,7 @@ class RangeDS(DataSetBase):
             intervals in seconds. Defaults to `DEFAULT_RESOLUTION`.
 
         Returns:
-            RangeIntervalsDS: A new RangeIntervalsDS instance.
+            RangeIntervalsDataset: A new RangeIntervalsDataset instance.
         """
 
         df = self.df.copy()
@@ -120,10 +120,10 @@ class RangeDS(DataSetBase):
 
         df["intervals"] = intervals
         df.drop(columns=["values"], inplace=True)
-        return RangeIntervalsDS(df)
+        return RangeIntervalsDataset(df)
 
-    def to_intervals_ds(self, threshold: timedelta) -> "IntervalsDS":
-        """Convert into IntervalsDS.
+    def to_intervals_ds(self, threshold: timedelta) -> "IntervalsDataset":
+        """Convert into IntervalsDataset.
 
         It doesn't use the TS values, just determines the intervals for times
         the values were present.
@@ -132,14 +132,14 @@ class RangeDS(DataSetBase):
         intervals.
 
         Returns:
-            IntervalsDS: A new IntervalsDS instance.
+            IntervalsDataset: A new IntervalsDataset instance.
         """
         return self.to_range_intervals_ds(threshold).to_intervals_ds()
 
 
-class RangeIntervalsDS(DataSetBase):
-    def to_intervals_ds(self) -> "IntervalsDS":
-        """Expand into a IntervalsDS.
+class RangeIntervalsDataset(DatasetBase):
+    def to_intervals_ds(self) -> "IntervalsDataset":
+        """Expand into a IntervalsDataset.
 
         Each interval is represented as a row in the DataFrame, with the start
         and end times as columns.
@@ -147,7 +147,7 @@ class RangeIntervalsDS(DataSetBase):
         As a result, the number of rows in the DataFrame will increase.
 
         Returns:
-            Corresponding IntervalsDS instance.
+            Corresponding IntervalsDataset instance.
         """
         # explode the intervals into separate rows
         df = self.df.explode("intervals", ignore_index=True)
@@ -172,10 +172,10 @@ class RangeIntervalsDS(DataSetBase):
         df.drop(columns=["intervals"], inplace=True)
 
         df = pd.concat([df, intervals], axis=1)
-        return IntervalsDS(df)
+        return IntervalsDataset(df)
 
 
-class IntervalsDS(DataSetBase):
+class IntervalsDataset(DatasetBase):
     def merge_overlaps(self, threshold=timedelta(0), columns=None):
         """Merge overlapping time intervals.
 
@@ -231,7 +231,7 @@ class IntervalsDS(DataSetBase):
         intervals.reset_index(inplace=True)
         intervals.drop("interval_label", axis=1, inplace=True)
 
-        return IntervalsDS(intervals)
+        return IntervalsDataset(intervals)
 
 
 def extract_columns_data(raw_data, columns):
@@ -252,13 +252,13 @@ def extract_columns_data(raw_data, columns):
 
 def raw_to_ds(
     raw_data,
-    ds_type: Optional[DataSetBase] = None,
+    ds_type: Optional[DatasetBase] = None,
     columns: Optional[list] = None,
-) -> Optional[DataSetBase]:
+) -> Optional[DatasetBase]:
     if ds_type is not None:
         return ds_type.from_raw(raw_data)
 
-    for ts_type in [RangeDS, InstantDS]:
+    for ts_type in [RangeDataset, InstantDataset]:
         ds = ts_type.from_raw(raw_data, columns)
         if ds is not None:
             return ds
@@ -326,7 +326,7 @@ def intervals_concat_days(days_dss, threshold=timedelta(0)):
 
             # merge the intervals
             merged_df = (
-                IntervalsDS(
+                IntervalsDataset(
                     pd.concat([to_merge_left, to_merge_right], ignore_index=True)
                 )
                 .merge_overlaps(
@@ -359,7 +359,7 @@ def intervals_concat_days(days_dss, threshold=timedelta(0)):
     # Finalizing the left over from the last day.
     ret_dfs.append(to_merge_left)
     df = pd.concat(ret_dfs, ignore_index=True)
-    return IntervalsDS(df)
+    return IntervalsDataset(df)
 
 
 def group_by_time(

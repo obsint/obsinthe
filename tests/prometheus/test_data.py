@@ -1,19 +1,19 @@
 from datetime import timedelta
 
 from obsinthe.prometheus.data import group_by_time
-from obsinthe.prometheus.data import InstantDS
+from obsinthe.prometheus.data import InstantDataset
 from obsinthe.prometheus.data import intervals_concat_days
-from obsinthe.prometheus.data import IntervalsDS
+from obsinthe.prometheus.data import IntervalsDataset
 from obsinthe.prometheus.data import one_hot_encode
-from obsinthe.prometheus.data import RangeDS
+from obsinthe.prometheus.data import RangeDataset
 from obsinthe.prometheus.data import raw_to_ds
 from obsinthe.testing.prometheus.builder import DEFAULT_START_TIME
 from obsinthe.testing.prometheus.builder import PromInstantDatasetBuilder
 from obsinthe.testing.prometheus.builder import PromRangeDatasetBuilder
 
 
-def test_instant_ds_from_raw(assert_df):
-    ds = InstantDS.from_raw(instant_query_data())
+def test_instant_dataset_from_raw(assert_df):
+    ds = InstantDataset.from_raw(instant_query_data())
     assert_df(
         ds.df,
         """
@@ -23,7 +23,7 @@ def test_instant_ds_from_raw(assert_df):
         """,
     )
 
-    ds = InstantDS.from_raw(instant_query_data(extra_labels=True), columns=["foo"])
+    ds = InstantDataset.from_raw(instant_query_data(extra_labels=True), columns=["foo"])
     assert_df(
         ds.df,
         """
@@ -34,8 +34,8 @@ def test_instant_ds_from_raw(assert_df):
     )
 
 
-def test_range_ds_from_raw(assert_df):
-    ds = RangeDS.from_raw(range_query_data())
+def test_range_dataset_from_raw(assert_df):
+    ds = RangeDataset.from_raw(range_query_data())
     assert_df(
         ds.df,
         """
@@ -45,7 +45,7 @@ def test_range_ds_from_raw(assert_df):
         """,
     )
 
-    ds = RangeDS.from_raw(range_query_data(extra_labels=True), columns=["foo"])
+    ds = RangeDataset.from_raw(range_query_data(extra_labels=True), columns=["foo"])
     assert_df(
         ds.df[["foo", "extra"]],
         """
@@ -71,8 +71,8 @@ def test_raw_to_ds():
     assert list(ds.df.columns) == ["foo", "extra", "values"]
 
 
-def test_range_ds_to_range_intervals_ds(assert_df):
-    range_ds = RangeDS.from_raw(range_query_intervals_data())
+def test_range_dataset_to_range_intervals_ds(assert_df):
+    range_ds = RangeDataset.from_raw(range_query_intervals_data())
 
     # merge overlaps and intervals within 60 seconds
     range_intervals_ds = range_ds.to_range_intervals_ds(timedelta(minutes=1))
@@ -97,8 +97,8 @@ def test_range_ds_to_range_intervals_ds(assert_df):
     )
 
 
-def test_range_intervals_ds_to_intervals_ds(assert_df):
-    range_ds = RangeDS.from_raw(range_query_intervals_data())
+def test_range_intervals_dataset_to_intervals_ds(assert_df):
+    range_ds = RangeDataset.from_raw(range_query_intervals_data())
     range_intervals_ds = range_ds.to_range_intervals_ds(timedelta(minutes=1))
     intervals_ds = range_intervals_ds.to_intervals_ds()
 
@@ -114,8 +114,8 @@ def test_range_intervals_ds_to_intervals_ds(assert_df):
     )
 
 
-def test_range_ds_to_intervals_ds(assert_df):
-    range_ds = RangeDS.from_raw(range_query_intervals_data())
+def test_range_dataset_to_intervals_ds(assert_df):
+    range_ds = RangeDataset.from_raw(range_query_intervals_data())
     intervals_ds = range_ds.to_intervals_ds(timedelta(minutes=1))
 
     # does conversion to range intervals and then to intervals
@@ -136,7 +136,7 @@ def test_intervals_merge_overlaps(assert_df):
             [str([start.isoformat(), end.isoformat()]) for start, end in sub_intervals]
         )
 
-    range_ds = RangeDS.from_raw(range_query_intervals_data())
+    range_ds = RangeDataset.from_raw(range_query_intervals_data())
     intervals_ds = range_ds.to_intervals_ds(timedelta(minutes=1))
 
     # merges overlapping intervals
@@ -165,7 +165,7 @@ def test_intervals_merge_overlaps(assert_df):
     )
 
     # test multi-columns scenario a merge on a specific column
-    range_ds = RangeDS.from_raw(range_query_intervals_data(extra_labels=True))
+    range_ds = RangeDataset.from_raw(range_query_intervals_data(extra_labels=True))
     intervals_ds = range_ds.to_intervals_ds(timedelta(minutes=1))
 
     intervals_ds = intervals_ds.merge_overlaps(timedelta(minutes=2), columns=["baz"])
@@ -196,7 +196,7 @@ def test_intervals_concat_days(assert_df):
     # Split the intervals by day to simulate a multi-day scenario.
     intervals_dss = []
     for _, day_df in intervals_ds.df.groupby("day"):
-        intervals_dss.append(IntervalsDS(day_df.drop(columns=["day"])))
+        intervals_dss.append(IntervalsDataset(day_df.drop(columns=["day"])))
 
     concat_ds = intervals_concat_days(intervals_dss)
     # By default concat only intervals that match exactly.
@@ -381,7 +381,7 @@ def multi_day_intervals_ds():
     ts_a_3.interval(timedelta(days=2), timedelta(days=3), 1)
 
     data = builder.build_raw()
-    range_ds = RangeDS.from_raw(data)
+    range_ds = RangeDataset.from_raw(data)
     return range_ds.to_intervals_ds(timedelta(minutes=1))
 
 
@@ -414,5 +414,5 @@ def alerts_bursts_intervals_ds(extra_labels=False):
     builder.ts(labels["e"]).interval(timedelta(minutes=13), timedelta(minutes=20), 1)
 
     data = builder.build_raw()
-    range_ds = RangeDS.from_raw(data)
+    range_ds = RangeDataset.from_raw(data)
     return range_ds.to_intervals_ds(timedelta(minutes=60))

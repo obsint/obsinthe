@@ -31,7 +31,7 @@ DATA = {
 }
 
 
-class AlertsDataSetBuilder(PromRangeDatasetBuilder):
+class AlertsDatasetBuilder(PromRangeDatasetBuilder):
     def __init__(self, start, end, data=DATA, n_instances=100):
         super().__init__(start, end)
         self.alerts_data = data["alerts"]

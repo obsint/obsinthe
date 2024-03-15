@@ -13,9 +13,9 @@ from tqdm.auto import tqdm
 from obsinthe.utils import time as time_utils
 
 from .client import Client
-from .data import DataSetType
-from .data import InstantDS
-from .data import RangeDS
+from .data import DatasetType
+from .data import InstantDataset
+from .data import RangeDataset
 from .data import raw_to_ds
 
 
@@ -41,7 +41,11 @@ class JsonFileCache:
 
 
 class ParquetFileCache:
-    DS_TYPES = {"InstantDS": InstantDS, "RangeDS": RangeDS, "DataFrame": pd.DataFrame}
+    DS_TYPES = {
+        "InstantDataset": InstantDataset,
+        "RangeDataset": RangeDataset,
+        "DataFrame": pd.DataFrame,
+    }
 
     def __init__(self, cache_dir: str):
         self.cache_dir = cache_dir
@@ -95,7 +99,7 @@ class Loader:
             self.json_cache = None
             self.parquet_cache = None
 
-    def query(self, query, time, ds_type: Optional[DataSetType] = None, cache_key=None):
+    def query(self, query, time, ds_type: Optional[DatasetType] = None, cache_key=None):
         if cache_key:
             if not isinstance(cache_key, list):
                 cache_key = [cache_key, time.isoformat()]
@@ -111,16 +115,17 @@ class Loader:
         start: str,
         end: str,
         cache_key: Optional[str] = None,
-        ds_type: Optional[DataSetType] = None,
+        ds_type: Optional[DatasetType] = None,
     ) -> list[pd.DataFrame]:
         # load raw data
-        data = []
+        ds_lst = []
 
         for _, interval_end in tqdm(time_utils.gen_daily_intervals(start, end)):
-            d = self.query(query, interval_end, ds_type, cache_key)
-            data.append(d)
+            ds = self.query(query, interval_end, ds_type, cache_key)
+            ds_lst.append(ds)
 
-        return data
+        # return DatasetCollection(ds_lst)
+        return ds_lst
 
     def batch_query(
         self,
@@ -128,7 +133,7 @@ class Loader:
         query_template: Union[str, Callable],
         cache_key: Optional[str] = None,
         batch_size: int = 500,
-        ds_type: Optional[DataSetType] = None,
+        ds_type: Optional[DatasetType] = None,
         post_process: Optional[Callable] = None,
     ):
         def format_query(items):

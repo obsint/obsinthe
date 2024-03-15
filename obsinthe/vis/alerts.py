@@ -13,21 +13,32 @@ $ poetry install --extras vis
   """
     ) from missing_imports
 
-from obsinthe.prometheus.data import IntervalsDS
+from typing import Callable
+from typing import Optional
+from typing import Union
+
+from obsinthe.prometheus.data import IntervalsDataset
 
 
-def plot_alerts_timeline(intervals_ds: IntervalsDS):
+def plot_alerts_timeline(
+    intervals_ds: IntervalsDataset, alert_id: Optional[Union[str, Callable]] = None
+):
     """Plot a timeline of alerts as a Gantt chart."""
-    alerts = intervals_ds.df
-    alerts = alerts.sort_values(["severity", "alertname"], ascending=[True, True])
-    alerts_ = alerts.copy()
-    alerts_["severity"] = alerts_["severity"].astype(str)
+    alerts = intervals_ds.df.copy()
+    alert_id = alert_id or "alertname"
+    if isinstance(alert_id, str):
+        alerts["alert_id"] = alerts[alert_id]
+    else:
+        alerts["alert_id"] = alerts.apply(alert_id, axis=1)
+
+    alerts.sort_values(["severity", "alert_id"], ascending=[True, True], inplace=True)
+    alerts["severity"] = alerts["severity"].astype(str)
 
     fig = px.timeline(
-        alerts_,
+        alerts,
         x_start="start",
         x_end="end",
-        y="alertname",
+        y="alert_id",
         color="severity",
         title="Timeline",
         color_discrete_map={
@@ -38,6 +49,6 @@ def plot_alerts_timeline(intervals_ds: IntervalsDS):
     )
     fig.update_layout(showlegend=False)
     fig.update_traces(width=0.8)
-    fig.update_layout(bargap=0.1, height=300)
+    fig.update_layout(bargap=0.1, height=1000)
 
     return fig
