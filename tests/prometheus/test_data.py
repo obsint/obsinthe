@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from obsinthe.prometheus.data import DatasetCollection
 from obsinthe.prometheus.data import group_by_time
 from obsinthe.prometheus.data import InstantDataset
 from obsinthe.prometheus.data import intervals_concat_days
@@ -191,14 +192,10 @@ def test_intervals_merge_overlaps(assert_df):
 
 
 def test_intervals_concat_days(assert_df):
-    intervals_ds = multi_day_intervals_ds()
+    intervals_ds_col = multi_day_intervals_ds_collection()
 
-    # Split the intervals by day to simulate a multi-day scenario.
-    intervals_dss = []
-    for _, day_df in intervals_ds.df.groupby("day"):
-        intervals_dss.append(IntervalsDataset(day_df.drop(columns=["day"])))
+    concat_ds = intervals_concat_days(intervals_ds_col)
 
-    concat_ds = intervals_concat_days(intervals_dss)
     # By default concat only intervals that match exactly.
     assert_df(
         concat_ds.df.sort_values("start"),
@@ -213,7 +210,8 @@ def test_intervals_concat_days(assert_df):
     )
 
     # Allow for additional tolerance.
-    concat_ds = intervals_concat_days(intervals_dss, timedelta(minutes=10))
+    concat_ds = intervals_concat_days(intervals_ds_col, timedelta(minutes=10))
+
     # It touches only the day boundaries: the intervals inside the same day are
     # not merged even if they are close to each other.
     assert_df(
@@ -293,7 +291,7 @@ def test_one_hot_encode(assert_df):
         tolerance=timedelta(minutes=3),
     )
 
-    one_hot_df = one_hot_encode(grouped_df[["group_id", "alert"]])
+    one_hot_df = one_hot_encode(grouped_df, "group_id", "alert")
     assert_df(
         one_hot_df,
         """
@@ -383,6 +381,17 @@ def multi_day_intervals_ds():
     data = builder.build_raw()
     range_ds = RangeDataset.from_raw(data)
     return range_ds.to_intervals_ds(timedelta(minutes=1))
+
+
+def multi_day_intervals_ds_collection():
+    intervals_ds = multi_day_intervals_ds()
+
+    # Split the intervals by day to simulate a multi-day scenario.
+    datasets = []
+    for _, day_df in intervals_ds.df.groupby("day"):
+        datasets.append(IntervalsDataset(day_df.drop(columns=["day"])))
+
+    return DatasetCollection(datasets)
 
 
 def alerts_bursts_intervals_ds(extra_labels=False):

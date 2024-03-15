@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from obsinthe.testing.prometheus.builder import PromRangeDatasetBuilder
 
+
 DATA = {
     "alerts": {
         "a": {"labels": {"alertname": "TargetDown", "severity": "warning"}},

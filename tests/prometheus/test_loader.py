@@ -120,7 +120,7 @@ def test_batch_query(loader, assert_df):
 def test_interval_query(loader, assert_df):
     mock_range_query()
 
-    res = loader.interval_query(
+    ds_col = loader.interval_query(
         "my_metric{%s}", start=TEST_TIME - timedelta(days=2), end=TEST_TIME
     )
 
@@ -135,7 +135,7 @@ def test_interval_query(loader, assert_df):
     ]
 
     assert_df(
-        res[0].df,
+        ds_col.datasets[0].df,
         """
    foo                                                        values
 0  bar  [1704106920.0, 42.0, 1704106980.0, 42.0, 1704107040.0, 42.0]

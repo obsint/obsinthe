@@ -234,6 +234,29 @@ class IntervalsDataset(DatasetBase):
         return IntervalsDataset(intervals)
 
 
+class DatasetCollection:
+    def __init__(self, datasets: List[DatasetBase]):
+        self.datasets = datasets
+
+    def __getitem__(self, idx):
+        return self.datasets[idx]
+
+    def __len__(self):
+        return len(self.datasets)
+
+    def __iter__(self):
+        return iter(self.datasets)
+
+    def __repr__(self):
+        return f"DatasetCollection with {len(self.datasets)} datasets"
+
+    def fmap(self, fn):
+        return DatasetCollection([fn(ds) for ds in self.datasets])
+
+    def query(self, *args, **kwargs):
+        return self.fmap(lambda ds: ds.query(*args, **kwargs))
+
+
 def extract_columns_data(raw_data, columns):
     if columns is None:
         return raw_data
@@ -310,10 +333,10 @@ def identify_intervals(df, resolution, time_column="timestamp"):
     return df
 
 
-def intervals_concat_days(days_dss, threshold=timedelta(0)):
+def intervals_concat_days(ds_collection, threshold=timedelta(0)):
     ret_dfs = []
     to_merge_left = None
-    for day_ds in tqdm(days_dss):
+    for day_ds in tqdm(ds_collection.datasets):
         day_df = day_ds.df
         # Merge the left over from the previous day.
 
@@ -390,9 +413,7 @@ def group_by_time(
     return groups.reset_index(drop=True)
 
 
-def one_hot_encode(df):
-    index = df.columns[0]
-    columns = df.columns[1]
+def one_hot_encode(df, index, column):
     return df.assign(value=1).pivot_table(
-        index=index, columns=columns, values="value", fill_value=0
+        index=index, columns=column, values="value", fill_value=0
     )

@@ -13,6 +13,7 @@ from tqdm.auto import tqdm
 from obsinthe.utils import time as time_utils
 
 from .client import Client
+from .data import DatasetCollection
 from .data import DatasetType
 from .data import InstantDataset
 from .data import RangeDataset
@@ -116,16 +117,15 @@ class Loader:
         end: str,
         cache_key: Optional[str] = None,
         ds_type: Optional[DatasetType] = None,
-    ) -> list[pd.DataFrame]:
+    ) -> DatasetCollection:
         # load raw data
-        ds_lst = []
+        datasets = []
 
         for _, interval_end in tqdm(time_utils.gen_daily_intervals(start, end)):
             ds = self.query(query, interval_end, ds_type, cache_key)
-            ds_lst.append(ds)
+            datasets.append(ds)
 
-        # return DatasetCollection(ds_lst)
-        return ds_lst
+        return DatasetCollection(datasets)
 
     def batch_query(
         self,
