@@ -17,8 +17,13 @@ tqdm = "*"
 plotly = { version = "*", optional = true }
 cufflinks = { version = "*", optional = true }
 
+umap-learn = { version = "*", optional = true }
+scikit-learn = { version = "*", optional = true }
+
 [tool.poetry.extras]
 vis = ["plotly", "cufflinks"]
+ml = ["umap-learn", "scikit-learn"]
+
 
 
 [tool.poetry.dev-dependencies]
