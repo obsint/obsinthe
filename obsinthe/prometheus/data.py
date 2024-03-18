@@ -235,6 +235,25 @@ class IntervalsDataset(DatasetBase):
 
         return IntervalsDataset(intervals)
 
+    def correct_for_resolution(self, resolution: timedelta = DEFAULT_RESOLUTION):
+        """Correct the end times of the intervals.
+
+        When turning a time series into intervals, the end times are determined
+        by the last timestamp in the series. In reality, however, the interval
+        ended sometimes after the last timestamp. This method corrects the end,
+        so we avoid zero-length intervals.
+
+        Args:
+            resolution (timedelta, optional): The resolution value used to
+            determine the intervals. Defaults to `DEFAULT_RESOLUTION`.
+
+        Returns:
+            IntervalsDataset: A new IntervalsDataset instance.
+        """
+        df = self.df.copy()
+        df["end"] = df["end"] + resolution
+        return IntervalsDataset(df)
+
 
 class DatasetCollection:
     def __init__(self, datasets: List[DatasetBase]):

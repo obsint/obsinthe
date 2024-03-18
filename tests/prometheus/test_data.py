@@ -131,6 +131,23 @@ def test_range_dataset_to_intervals_ds(assert_df):
     )
 
 
+def test_intervals_dataset_correct_for_resolution(assert_df):
+    range_ds = RangeDataset.from_raw(range_query_intervals_data())
+    intervals_ds = range_ds.to_intervals_ds(timedelta(minutes=1))
+
+    intervals_ds = intervals_ds.correct_for_resolution(timedelta(minutes=1))
+
+    assert_df(
+        intervals_ds.df[["foo", "start", "end"]],
+        """
+   foo                     start                       end
+0  bar 2024-01-01 00:02:00+00:00 2024-01-01 00:09:00+00:00
+1  baz 2024-01-01 00:01:00+00:00 2024-01-01 00:04:00+00:00
+2  baz 2024-01-01 00:05:00+00:00 2024-01-01 00:09:00+00:00
+    """,
+    )
+
+
 def test_intervals_merge_overlaps(assert_df):
     def sub_intervals_str(sub_intervals):
         return "\n".join(
