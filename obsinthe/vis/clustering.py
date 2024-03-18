@@ -30,4 +30,4 @@ def plot_clustering(ac: AlertsClustering):
             )
         )
 
-    fig.show()
+    return fig
