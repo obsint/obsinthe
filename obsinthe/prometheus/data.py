@@ -90,9 +90,13 @@ class RangeDataset(DatasetBase):
         return RangeDataset(df)
 
     def to_range_intervals_ds(
-        self, threshold: timedelta = DEFAULT_RESOLUTION
+        self, resolution: timedelta = DEFAULT_RESOLUTION
     ) -> "RangeIntervalsDataset":
         """Convert into RangeIntervalsDataset.
+
+        Args:
+            resolution (int, optional): The resolution value used to determine the
+            intervals. Defaults to `DEFAULT_RESOLUTION`.
 
         It doesn't use the TS values, just determines the intervals for times
         the values were present.
@@ -100,9 +104,7 @@ class RangeDataset(DatasetBase):
         It preserves the original rows, just replaces the values column with the
         intervals.
 
-        Args:
-            threshold (int, optional): The threshold value used to determine the
-            intervals in seconds. Defaults to `DEFAULT_RESOLUTION`.
+        The end of each interval is calculated as last timestamp + resolution.
 
         Returns:
             RangeIntervalsDataset: A new RangeIntervalsDataset instance.
@@ -110,31 +112,31 @@ class RangeDataset(DatasetBase):
 
         df = self.df.copy()
 
-        threshold_s = threshold.total_seconds()
+        resolution_s = resolution.total_seconds()
+
+        def values_to_intervals(vs):
+            return np_timestamps_to_intervals(vs[0::2], resolution_s)
 
         # we use vs[0::2] as we care only about timestamps: assuming values being all
         # ones as in alerts case.
-        intervals = df["values"].apply(
-            lambda vs: np_timestamps_to_intervals(vs[0::2], threshold_s)
-        )
+        intervals = df["values"].apply(values_to_intervals)
 
         df["intervals"] = intervals
         df.drop(columns=["values"], inplace=True)
         return RangeIntervalsDataset(df)
 
-    def to_intervals_ds(self, threshold: timedelta) -> "IntervalsDataset":
+    def to_intervals_ds(self, resolution: timedelta) -> "IntervalsDataset":
         """Convert into IntervalsDataset.
 
-        It doesn't use the TS values, just determines the intervals for times
-        the values were present.
+        Applies `to_range_intervals_ds` to identify the intervals and then
+        expands them into separate rows.
 
-        It preserves the original rows, just replaces the values column with the
-        intervals.
+        See `to_range_intervals_ds` for arguments details.
 
         Returns:
             IntervalsDataset: A new IntervalsDataset instance.
         """
-        return self.to_range_intervals_ds(threshold).to_intervals_ds()
+        return self.to_range_intervals_ds(resolution).to_intervals_ds()
 
 
 class RangeIntervalsDataset(DatasetBase):
