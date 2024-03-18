@@ -2888,10 +2888,12 @@ files = [
 ]
 
 [extras]
+all = ["cufflinks", "plotly", "responses", "scikit-learn", "umap-learn"]
 ml = ["scikit-learn", "umap-learn"]
+test = ["responses"]
 vis = ["cufflinks", "plotly"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "897e3cff9ba82f337b4b321578cb63db6a139bd98fcc260facaaff997d2c1edf"
+content-hash = "a65224f7caff1a2e25d51d739a193531c2a58df719396c7f87af03851ac31e39"

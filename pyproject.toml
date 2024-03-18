@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "obsinthe"
-version = "0.1.0"
+version = "0.0.1"
 description = ""
 authors = []
 packages = [
@@ -20,11 +20,16 @@ cufflinks = { version = "*", optional = true }
 umap-learn = { version = "*", optional = true }
 scikit-learn = { version = "*", optional = true }
 
+responses = { version = "*", optional = true }
+
 [tool.poetry.extras]
 vis = ["plotly", "cufflinks"]
 ml = ["umap-learn", "scikit-learn"]
+test = ["responses"]
 
-
+all = ["plotly", "cufflinks",
+       "umap-learn", "scikit-learn",
+       "responses"]
 
 [tool.poetry.dev-dependencies]
 black = "*"
