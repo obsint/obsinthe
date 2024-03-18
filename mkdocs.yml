@@ -1,0 +1,5 @@
+site_name: My Docs
+
+exclude_docs: |
+  # just explanation on reasons for this extra dir
+  docs/README.md
