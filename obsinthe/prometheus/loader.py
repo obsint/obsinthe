@@ -16,6 +16,7 @@ from .client import Client
 from .data import DatasetCollection
 from .data import DatasetType
 from .data import InstantDataset
+from .data import IntervalsDataset
 from .data import RangeDataset
 from .data import raw_to_ds
 
@@ -45,6 +46,7 @@ class ParquetFileCache:
     DS_TYPES = {
         "InstantDataset": InstantDataset,
         "RangeDataset": RangeDataset,
+        "IntervalsDataset": IntervalsDataset,
         "DataFrame": pd.DataFrame,
     }
 
@@ -100,15 +102,32 @@ class Loader:
             self.json_cache = None
             self.parquet_cache = None
 
-    def query(self, query, time, ds_type: Optional[DatasetType] = None, cache_key=None):
+    def query(
+        self,
+        query,
+        time,
+        ds_type: Optional[DatasetType] = None,
+        cache_key=None,
+        post_process: Optional[Callable] = None,
+    ):
         if cache_key:
             if not isinstance(cache_key, list):
                 cache_key = [cache_key, time.isoformat()]
-        return self.with_cache(
+        else:
+            cache_key = [None]  # no caching, but keep for consistency
+
+        ds = self.with_cache(
             "parquet",
             cache_key,
             lambda: raw_to_ds(self.client.query(query, time=time), ds_type=ds_type),
         )
+
+        if post_process:
+            ds = self.with_cache(
+                "parquet", cache_key + ["post"], lambda: post_process(ds)
+            )
+
+        return ds
 
     def interval_query(
         self,
@@ -161,24 +180,20 @@ class Loader:
                     interval_end,
                     ds_type,
                     cache_keys,
+                    post_process,
                 )
-                if ds is not None:
-                    # make sure the ds_type is determined: will be used later.
-                    ds_type = type(ds)
-                if post_process:
-                    ds = self.with_cache(
-                        "parquet", cache_keys + ["post"], lambda: post_process(ds)
-                    )
 
                 if ds is not None:
                     day_data.append(ds)
 
             if day_data:
+                # make sure the ds_type is determined: will be used later.
+                ds_type_ = type(day_data[0])
                 day_data_dfs = [ds.df for ds in day_data]
                 df = pd.concat(day_data_dfs, ignore_index=True).copy()
                 if "timestamp" not in df.columns:  # in case of range df
                     df["timestamp"] = pd.to_datetime(interval_end)
-                data.append(ds_type(df))
+                data.append(ds_type_(df))
 
         return data
 

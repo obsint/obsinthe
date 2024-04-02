@@ -115,6 +115,21 @@ def test_batch_query(loader, assert_df):
     """,
     )
 
+    def post_process(ds):
+        return ds.to_intervals_ds(timedelta(minutes=1))
+
+    res = loader.batch_query(
+        {
+            TEST_TIME: ["foo", "bar", "baz"],
+            TEST_TIME - timedelta(hours=1): ["baz", "qux", "quux"],
+        },
+        "my_metric{%s}",
+        batch_size=2,
+        post_process=post_process,
+    )
+
+    assert list(res[0].df.columns) == ["foo", "start", "end", "timestamp"]
+
 
 @responses.activate()
 def test_interval_query(loader, assert_df):
@@ -240,6 +255,40 @@ def test_cache(assert_df):
 
     # Different sub key (qux vs. foo) => partial new queries
     assert len(responses.calls) == 1
+
+    # Cache for post-process
+
+    post_process_counts = 0
+
+    def post_process(ds):
+        nonlocal post_process_counts
+        post_process_counts += 1
+        return ds.to_intervals_ds(timedelta(minutes=1))
+
+    responses.reset()
+    mock_range_query()
+
+    def run_query():
+        return loader.batch_query(
+            {
+                TEST_TIME: ["qux", "bar", "baz"],
+                TEST_TIME - timedelta(hours=1): ["baz", "qux", "quux"],
+            },
+            "my_metric{%s}",
+            batch_size=2,
+            cache_key="foo",
+            post_process=post_process,
+        )
+
+    run_query()
+    # Already cached queries => no new queries
+    assert len(responses.calls) == 0
+    assert post_process_counts == 4  # first time post-process is called
+
+    post_process_counts = 0
+    run_query()
+    assert len(responses.calls) == 0
+    assert post_process_counts == 0  # second call, post-processing results cached
 
 
 def test_json_cache():
