@@ -195,7 +195,7 @@ class Loader:
                     df["timestamp"] = pd.to_datetime(interval_end)
                 data.append(ds_type_(df))
 
-        return data
+        return DatasetCollection(data)
 
     def with_cache(self, format: str, key: Optional[list], func: Callable):
         if format == "json":
