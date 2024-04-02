@@ -277,6 +277,13 @@ class DatasetCollection:
     def query(self, *args, **kwargs):
         return self.fmap(lambda ds: ds.query(*args, **kwargs))
 
+    def flatten(self):
+        if len(self.datasets) == 0:
+            raise ValueError("No datasets to flatten")
+        df = pd.concat([ds.df for ds in self.datasets], ignore_index=True)
+        cls = type(self.datasets[0])
+        return cls(df)
+
 
 def extract_columns_data(raw_data, columns):
     if columns is None:
