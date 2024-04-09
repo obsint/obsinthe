@@ -178,16 +178,33 @@ class RangeIntervalsDataset(DatasetBase):
 
 
 class IntervalsDataset(DatasetBase):
-    def merge_overlaps(self, threshold=timedelta(0), columns=None):
+    def merge_overlaps(self, threshold=timedelta(0), columns=None, keep_rest=False):
         """Merge overlapping time intervals.
 
         Considering a list of time-intervals at the input, merge the rows
         that have the same columns values + have some time overlaps.
+
+        By default, the resulting intervals columns will be
+        `columns + ["start", "end", "sub_intervals"]`.
+
+        To keep the original columns, set `keep_rest=True`. It will keep all
+        original columns except the `start` and `end`. This can potentially lead
+        to multiple rows with the same values in `columns + ['start', 'end']`,
+        but different in the rest of the columns.
         """
         if self.df.empty:
             return self
 
         df = self.df
+
+        df_base = None
+        if keep_rest:
+            df_base = self.df.drop(columns=["start", "end"], axis=1).drop_duplicates()
+
+        if columns is None:
+            columns = list(df.columns.drop(["start", "end"]))
+
+        df = df[columns + ["start", "end"]]
 
         def _identify_intervals(sub_df):
             if len(sub_df) == 1:
@@ -207,8 +224,6 @@ class IntervalsDataset(DatasetBase):
             sub_df["interval_label"] = period_start.cumsum()
             return sub_df
 
-        if columns is None:
-            columns = list(df.columns.drop(["start", "end"]))
         df = df.sort_values("start")
 
         interval_labels = df.groupby(
@@ -222,6 +237,7 @@ class IntervalsDataset(DatasetBase):
             dropna=False,
             group_keys=True,
         ).agg(start=("start", "min"), end=("end", "max"))
+
         intervals["sub_intervals"] = interval_labels.groupby(
             columns + ["interval_label"],
             observed=True,
@@ -231,6 +247,11 @@ class IntervalsDataset(DatasetBase):
         ).apply(lambda df: list(zip(df["start"], df["end"])))
 
         intervals.reset_index(inplace=True)
+
+        if df_base is not None:
+            intervals = df_base.merge(intervals, on=columns)
+            intervals.reset_index(drop=True, inplace=True)
+
         intervals.drop("interval_label", axis=1, inplace=True)
 
         return IntervalsDataset(intervals)
@@ -271,8 +292,11 @@ class DatasetCollection:
     def __repr__(self):
         return f"DatasetCollection with {len(self.datasets)} datasets"
 
-    def fmap(self, fn):
-        return DatasetCollection([fn(ds) for ds in self.datasets])
+    def fmap(self, fn, progress: bool = False, *args, **kwargs):
+        collection = self.datasets
+        if progress:
+            collection = tqdm(collection)
+        return DatasetCollection([fn(ds, *args, **kwargs) for ds in collection])
 
     def query(self, *args, **kwargs):
         return self.fmap(lambda ds: ds.query(*args, **kwargs))
@@ -361,7 +385,9 @@ def identify_intervals(df, resolution, time_column="timestamp"):
     return df
 
 
-def intervals_concat_days(ds_collection, threshold=timedelta(0)):
+def intervals_concat_days(
+    ds_collection, threshold=timedelta(0), merge_columns=None, keep_rest=False
+):
     ret_dfs = []
     to_merge_left = None
     for day_ds in tqdm(ds_collection.datasets):
@@ -382,6 +408,8 @@ def intervals_concat_days(ds_collection, threshold=timedelta(0)):
                 )
                 .merge_overlaps(
                     threshold=threshold,
+                    columns=merge_columns,
+                    keep_rest=keep_rest,
                 )
                 .df
             )
