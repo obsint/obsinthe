@@ -207,6 +207,29 @@ def test_intervals_merge_overlaps(assert_df):
     empty_ds = intervals_ds.fmap(lambda df: df.iloc[0:0])
     assert empty_ds.merge_overlaps(timedelta(minutes=2)).df.empty
 
+    # test keep rest of the columns
+    range_ds = RangeDataset.from_raw(range_query_intervals_data(extra_labels=True))
+    intervals_ds = range_ds.to_intervals_ds(timedelta(minutes=1))
+
+    intervals_ds = intervals_ds.merge_overlaps(
+        timedelta(minutes=2), columns=["baz"], keep_rest=True
+    )
+    assert intervals_ds.df.columns.tolist() == [
+        "foo",
+        "baz",
+        "start",
+        "end",
+        "sub_intervals",
+    ]
+    assert_df(
+        intervals_ds.df[["foo", "baz", "start", "end"]],
+        """
+   foo  baz                     start                       end
+0  bar  qux 2024-01-01 00:01:00+00:00 2024-01-01 00:08:00+00:00
+1  baz  qux 2024-01-01 00:01:00+00:00 2024-01-01 00:08:00+00:00
+    """,
+    )
+
 
 def test_intervals_concat_days(assert_df):
     intervals_ds_col = multi_day_intervals_ds_collection()
