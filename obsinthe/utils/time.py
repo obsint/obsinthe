@@ -3,7 +3,6 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from functools import reduce
-from hashlib import sha256
 from typing import Dict
 
 import numpy as np
@@ -21,18 +20,6 @@ def normalize_tz(time: datetime):
 
 def datetime_start_of_day(dt: datetime) -> datetime:
     return datetime.combine(dt.date(), datetime.min.time(), tzinfo=timezone.utc)
-
-
-def add_row_digest(df: pd.DataFrame, exclude) -> pd.DataFrame:
-    def hash_row(r):
-        return sha256(
-            ("".join(sorted(f"{k,v}" for (k, v) in r.to_dict().items()))).encode(
-                "utf-8"
-            )
-        ).hexdigest()
-
-    df["digest"] = df.drop(exclude, axis=1).apply(hash_row, axis=1)
-    return df
 
 
 def gen_daily_intervals(start, end):
