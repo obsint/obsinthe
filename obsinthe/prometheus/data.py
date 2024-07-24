@@ -449,9 +449,9 @@ def group_by_time(
     group_id_column="group_id",
 ) -> pd.DataFrame:
     if extra_groupby_columns:
-        groups = df.groupby(extra_groupby_columns, as_index=False).apply(
-            lambda df: identify_intervals(df, tolerance, time_column)
-        )
+        groups = df.groupby(
+            extra_groupby_columns, as_index=False, dropna=False, observed=True
+        ).apply(lambda df: identify_intervals(df, tolerance, time_column))
     else:
         groups = identify_intervals(df, tolerance, time_column)
 
