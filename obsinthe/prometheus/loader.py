@@ -116,18 +116,23 @@ class Loader:
         else:
             cache_key = [None]  # no caching, but keep for consistency
 
-        ds = self.with_cache(
-            "parquet",
-            cache_key,
-            lambda: raw_to_ds(self.client.query(query, time=time), ds_type=ds_type),
-        )
-
-        if post_process:
-            ds = self.with_cache(
-                "parquet", cache_key + ["post"], lambda: post_process(ds)
+        def _query():
+            return self.with_cache(
+                "parquet",
+                cache_key,
+                lambda: raw_to_ds(self.client.query(query, time=time), ds_type=ds_type),
             )
 
-        return ds
+        def _query_with_post_process():
+            return post_process(_query())
+
+        if post_process:
+            return self.with_cache(
+                "parquet", cache_key + ["post"], lambda: _query_with_post_process()
+            )
+
+        else:
+            return _query()
 
     def interval_query(
         self,
