@@ -15,3 +15,12 @@ def get_row_digests(df: pd.DataFrame, exclude=[]) -> pd.Series:
         df = df.drop(exclude, axis=1)
 
     return df.apply(hash_row, axis=1)
+
+
+def one_hot_encode(df, index, column, prefix=None):
+    ret = df.assign(value=1).pivot_table(
+        index=index, columns=column, values="value", fill_value=0
+    )
+    if prefix:
+        ret.columns = [f"{prefix}{c}" for c in ret.columns]
+    return ret

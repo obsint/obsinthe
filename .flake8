@@ -1,5 +1,8 @@
 [flake8]
 max-line-length = 88
+per-file-ignores =
+    # O as outcomes variable.
+    obsinthe/utils/relative_risks.py: E741
 ignore =
     # top level import
     E402,

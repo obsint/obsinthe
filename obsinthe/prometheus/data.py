@@ -12,6 +12,10 @@ import pandas as pd
 from pandas.api.types import is_datetime64_any_dtype as is_datetime
 from tqdm.auto import tqdm
 
+from obsinthe.utils.data import (  # noqa: F401 imported for backward compatibility
+    one_hot_encode,
+)
+
 
 # Default resolution for Prometheus queries, in seconds.
 DEFAULT_RESOLUTION = timedelta(minutes=5)
@@ -467,9 +471,3 @@ def group_by_time(
         groups.rename(columns={"interval_label": group_id_column}, inplace=True)
 
     return groups.reset_index(drop=True)
-
-
-def one_hot_encode(df, index, column):
-    return df.assign(value=1).pivot_table(
-        index=index, columns=column, values="value", fill_value=0
-    )
